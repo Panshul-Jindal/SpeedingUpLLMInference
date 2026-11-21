@@ -10,14 +10,13 @@ sources that are in this repository or were submitted to the course, and cites t
 - course documents: Assignment 1 (problem statement), Assignment 2 (proposed approach and system design), the
   progress report;
 - the harness source (`harness/`, `configs/`, `scripts/`, `cluster/`, `tests/`) and the build spec `docs/build_spec.md`;
-- the commit history: `6ebfa6d`, `67db3a6`, `a8454d5`, `bba6cee` (29 Oct), `3526c58` (2 Nov), `c42acca` (5 Nov);
-  the investigation update (`configs/profiles/investigate.yaml`, `harness/deep_telemetry.py`,
-  `harness/analysis/investigate.py`) came after `c42acca`;
+- the investigation update (`configs/profiles/investigate.yaml`, `harness/deep_telemetry.py`,
+  `harness/analysis/investigate.py`), added after 5 Nov;
 - `RUNBOOK.md`, `SMOKE_TEST_REPORT.md`;
 - the report pack `evaluation/report_pack/` (data exported from the run logs; `FINDINGS.md`, `METHODOLOGY.md`,
   `LIMITATIONS.md`).
 
-Dates are those of the commit or data that shows a decision in effect; where only a range is known, a range is
+Dates are those of the code, documents or data that show a decision in effect; where only a range is known, a range is
 given. Nothing is back-dated. Superseded or insufficient records are kept.
 
 **Citation shorthand.** `data/x.csv` = `evaluation/report_pack/data/x.csv`. F1–F10 / C1–C17 = findings and claims
@@ -84,8 +83,7 @@ the same design into the build spec.
 <a id="adr-001"></a>
 ## ADR-001 — Serving engine: vLLM, pinned to 0.31.0 (cu129)
 
-**Date, status & scope.** Engine chosen in Assignment 2 §C.1; version pinned 29 Oct 2026 (`6ebfa6d`,
-`requirements.in`). Accepted. Scope: engine layer, all measurements.
+**Date, status & scope.** Engine chosen in Assignment 2 §C.1; version pinned 29 Oct 2026 (`requirements.in`). Accepted. Scope: engine layer, all measurements.
 
 **Context & decision drivers.** Each optimization must be switchable by configuration alone, with the same numerics
 on the test GPU (Blackwell, sm_120) and the main GPUs, and the engine must export KV-cache use, prefix-cache hits and
@@ -114,7 +112,7 @@ configurations start (`SMOKE_TEST_REPORT.md` §2).
 <a id="adr-002"></a>
 ## ADR-002 — Model checkpoint: ungated mirror of Llama-3.1-8B-Instruct
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`, `models.target` in `configs/env/*.yaml`). Accepted. Scope: every run
+**Date, status & scope.** 29 Oct 2026 (`models.target` in `configs/env/*.yaml`). Accepted. Scope: every run
 and quality check.
 
 **Context & decision drivers.** The official repository `meta-llama/Llama-3.1-8B-Instruct` is gated, so every
@@ -141,7 +139,7 @@ official weights. The Llama 3.1 Community License applies unchanged.
 <a id="adr-003"></a>
 ## ADR-003 — Default baseline is genuinely "all off" and verified from the engine
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`: `vllm_flags.py`; `a8454d5`: settings read from `/server_info`).
+**Date, status & scope.** 29 Oct 2026 (`vllm_flags.py`; settings read from `/server_info`).
 Accepted. Scope: every Value.
 
 **Context & decision drivers.** Assignment 2 §A: Default must also disable what vLLM enables on its own (prefix
@@ -170,7 +168,7 @@ default `max_num_seqs` (256) exceeds every in-flight count measured, tuned batch
 <a id="adr-004"></a>
 ## ADR-004 — Value: speedup over Default, gated by p99 latency and accuracy
 
-**Date, status & scope.** Defined in Assignment 2 §A; thresholds fixed 29 Oct 2026 (`6ebfa6d`: `gates` in
+**Date, status & scope.** Defined in Assignment 2 §A; thresholds fixed 29 Oct 2026 (`gates` in
 `configs/experiment.yaml`, `harness/analysis/value.py`). Accepted; accuracy part refined by ADR-018. Scope: ranking of
 configurations (M5).
 
@@ -197,7 +195,7 @@ no cell failed a latency gate; all 86 gate failures were accuracy failures under
 <a id="adr-005"></a>
 ## ADR-005 — Workload: synthetic token-exact traces and an own closed-loop client
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`: `harness/workload.py`, `harness/load_driver.py`). Accepted. Scope:
+**Date, status & scope.** 29 Oct 2026 (`harness/workload.py`, `harness/load_driver.py`). Accepted. Scope:
 all measured runs.
 
 **Context & decision drivers.** Configurations must see identical requests, and each regime must be set exactly.
@@ -280,8 +278,8 @@ the paired test; together with FP8 KV they gave the only significant drop (−2.
 <a id="adr-008"></a>
 ## ADR-008 — Speculative decoding: EAGLE-3 for results, n-gram only for smoke tests
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`: `speculative.method: eagle3` in `configs/env/main.yaml`); confirmed
-by the smoke result (`bba6cee`). Accepted. Scope: optimization 3 (`spec`).
+**Date, status & scope.** 29 Oct 2026 (`speculative.method: eagle3` in `configs/env/main.yaml`); confirmed
+by the smoke result (`SMOKE_TEST_REPORT.md`). Accepted. Scope: optimization 3 (`spec`).
 
 **Context & decision drivers.** Assignment 2 allowed "EAGLE-style draft heads or a small draft model". The smoke test
 used n-gram (no extra model) and it accepted 0.97 of drafts on random-word prompts (`SMOKE_TEST_REPORT.md` §2),
@@ -305,7 +303,7 @@ config. If the head fails to load, `spec` configurations are recorded as infeasi
 <a id="adr-009"></a>
 ## ADR-009 — Quality: lm-eval against the running server, once per numeric setting
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`: `harness/quality.py`; `bba6cee`: stop-string fix, one lm-eval call
+**Date, status & scope.** 29 Oct 2026 (`harness/quality.py`, with a stop-string fix and one lm-eval call
 per task). Accepted; refined by ADR-018. Scope: accuracy gate (M6).
 
 **Context & decision drivers.** Only optimizations 1–3 change numerics, so 2³ = 8 quality runs cover every
@@ -335,7 +333,7 @@ smoke re-run 5/5 settings ok.
 <a id="adr-010"></a>
 ## ADR-010 — Telemetry: NVML + vLLM metrics (+ profiler passes) instead of DCGM/Nsight
 
-**Date, status & scope.** 29 Oct 2026 (`6ebfa6d`: `harness/telemetry.py`); deep telemetry and profiler passes with the
+**Date, status & scope.** 29 Oct 2026 (`harness/telemetry.py`); deep telemetry and profiler passes with the
 investigation update (`harness/deep_telemetry.py`, first used 11 Nov). Accepted; amends ADR-000. Scope: binding
 constraint (M7), integrity (M8).
 
@@ -365,7 +363,7 @@ cells of `data/investigation_cells.csv`. NVML device memory is what exposed the 
 ## ADR-011 — Append-only results store; failures are results; resumable runs
 
 **Date, status & scope.** 29 Oct 2026 (`harness/results.py`, `harness/orchestrator.py`); job deadline, `pipeline` and
-`status` commands and Slurm chaining 5 Nov 2026 (`c42acca`). Accepted. Scope: reliability, data model.
+`status` commands and Slurm chaining 5 Nov 2026. Accepted. Scope: reliability, data model.
 
 **Context & decision drivers.** Runs last many hours on machines that can crash or end jobs at a time limit; some
 configurations may not start. Neither may lose data or stop the experiment (`docs/build_spec.md` §4.6).
@@ -394,7 +392,7 @@ configurations and 1 injected crash and finishes (`configs/profiles/dry.yaml`); 
 <a id="adr-012"></a>
 ## ADR-012 — Scope: measure 5 of the 7 optimizations; chunked prefill and parallelism dropped
 
-**Date, status & scope.** 2 Nov 2026 (`3526c58`: `configs/profiles/fast.yaml`, `optimizations: [quant, kvq, spec,
+**Date, status & scope.** 2 Nov 2026 (`configs/profiles/fast.yaml`, `optimizations: [quant, kvq, spec,
 prefix, batch]`), while the 4 × RTX 6000 Ada node was still the plan; kept after the downgrade to the 2 × H100 node
 (ADR-014). Accepted. Amends ADR-000 and ADR-006. Scope: milestones M4,
 M7. **Mentor approval:** none on record. This is a change after the 9 October checkpoint, and no mentor feedback was
@@ -440,8 +438,8 @@ phase-1 rows have `profile = fast` (`data/runs_fast_plan_all.csv`).
 <a id="adr-013"></a>
 ## ADR-013 — One configuration per GPU; cells on different GPUs measured concurrently
 
-**Date, status & scope.** 2 Nov 2026 (`3526c58`: `run.gpus_per_cell`, `run_on_slots` in `orchestrator.py`, file lock
-in `results.py`), written for 4 slots; run with 2 slots on the H100 node (`gpu_ids: auto`, `c42acca`). Accepted.
+**Date, status & scope.** 2 Nov 2026 (`run.gpus_per_cell`, `run_on_slots` in `orchestrator.py`, file lock
+in `results.py`), written for 4 slots; run with 2 slots on the H100 node (`gpu_ids: auto`). Accepted.
 Scope: orchestrator, results store, integrity (M8).
 
 **Context & decision drivers.** Once parallelism is out of the design (ADR-012), an 8B model needs only one GPU per
@@ -466,7 +464,7 @@ interference had to be tested. The per-GPU view also made the contamination visi
 <a id="adr-014"></a>
 ## ADR-014 — Execution platform: 2 × H100 NVL Slurm node, chained resumable jobs
 
-**Date, status & scope.** 5 Nov 2026 (`c42acca`: `configs/env/h100.yaml`, `scripts/slurm/{harness.sbatch,submit.sh,
+**Date, status & scope.** 5 Nov 2026 (`configs/env/h100.yaml`, `scripts/slurm/{harness.sbatch,submit.sh,
 prefetch.sh}`, `pipeline`/`status` commands). Accepted. Scope: all 510 measured runs.
 
 **Context & decision drivers.** The project had a node with 4 × RTX 6000 Ada (48 GB, Ada FP8), which the build spec and
@@ -499,7 +497,7 @@ pins (ADR-001). A first attempt under Python 3.10.8 failed at engine start for e
 <a id="adr-015"></a>
 ## ADR-015 — GPU sharing on the Slurm node: pre-flight VRAM check only
 
-**Date, status & scope.** 5 Nov 2026 (`c42acca`: `--gres=gpu:2` left commented in `scripts/slurm/harness.sbatch`;
+**Date, status & scope.** 5 Nov 2026 (`--gres=gpu:2` left commented in `scripts/slurm/harness.sbatch`;
 `min_free_vram_gb: 70` in `h100.yaml`; `gpu_checks` in `doctor.py`). Accepted; **shown insufficient** by the
 contamination (ADR-017); replacement open. Kept, not deleted. Scope: validity of every cluster run.
 
@@ -528,7 +526,7 @@ option 3.
 <a id="adr-016"></a>
 ## ADR-016 — Phase 2: focused re-runs of anomalies with deep telemetry
 
-**Date, status & scope.** Investigation update after `c42acca` (`configs/profiles/investigate.yaml`,
+**Date, status & scope.** Investigation update after 5 Nov 2026 (`configs/profiles/investigate.yaml`,
 `harness/deep_telemetry.py`, `harness/analysis/investigate.py`, `tests/test_investigate.py`, `cluster/*_investigate.sh`);
 measured 11 Nov 2026, 19:08–23:31 UTC. Accepted; amends ADR-000. Scope: M6–M8.
 

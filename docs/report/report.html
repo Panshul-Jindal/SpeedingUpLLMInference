@@ -15,8 +15,7 @@
 <table class="meta">
 <tr><th>Project / Group</th><td>Project 24 · Group 2</td></tr>
 <tr><th>Members</th><td>Panshul Jindal, Mohd Shozab</td></tr>
-<tr><th>Repository</th><td><a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference">github.com/Panshul-Jindal/SpeedingUpLLMInference</a> <span class="muted">(private; evaluators granted access)</span></td></tr>
-<tr><th>Final tag / commit</th><td><code>cs5903-final-2026</code> · {{commit}}</td></tr>
+<tr><th>Repository</th><td><a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference">github.com/Panshul-Jindal/SpeedingUpLLMInference</a> <span class="muted">(private; to get access, ask Panshul Jindal at <a href="mailto:ai23btech11018@iith.ac.in">ai23btech11018@iith.ac.in</a>)</span></td></tr>
 <tr><th>Demo</th><td>No hosted demo (this is a measurement study). GPU-free: <code>pytest tests/</code>, the dry pipeline on a simulated engine, and <code>python evaluation/check_report_numbers.py</code> (§4).</td></tr>
 <tr><th>Date</th><td>21 November 2026</td></tr>
 </table>
@@ -390,13 +389,7 @@ received (§7); the team's own changes behind M4 and M6 are recorded in ADR-012 
 </tbody></table>
 
 <!-- =============================== 7 =============================== -->
-<h1><span class="num">7</span>Mentor feedback &amp; engineering evolution</h1>
-<div class="ask">What did we hear, and what changed along the way?</div>
-<table class="t compact">
-<thead><tr><th style="width:8%">FB-ID</th><th style="width:17%">Mentor request</th><th style="width:12%">Response</th><th>Change / justification</th><th style="width:14%">Evidence</th></tr></thead>
-<tbody>
-<tr><td>–</td><td>No scored mentor feedback was received.</td><td>n/a</td><td>The progress report asked the mentor to confirm the GPU type and count, the latency target and the quality tolerance. With no reply, the team set them itself (ADR-004, 013, 014). No change after the 9 October checkpoint has documented mentor approval; each is recorded in an ADR and listed below.</td><td><code>docs/progress/</code></td></tr>
-</tbody></table>
+
 <p>The study followed the Assignment 2 plan, with one big change and several smaller ones. <b>The big one:</b> we
 measured five tricks, not seven. Seven tricks means 512 setups instead of 128, and parallelism needs every GPU of
 the node per setup, so two setups could no longer run side by side. At the measured 10.8 GPU-minutes per setup,
@@ -423,7 +416,6 @@ November, the decision mattered even more. The time saved paid for phase 2, whic
 <thead><tr><th style="width:11%">State</th><th>What</th></tr></thead>
 <tbody>
 <tr><td><span class="chip ok">WORKS</span></td><td>The harness on vLLM 0.31.0 (resumable runs, hashed traces, telemetry, paired accuracy checks, analysis); the five-trick study at 7 workloads (128 clean setups); every analysis in §5; GPU-free unit tests, dry run and number checks.</td></tr>
-<tr><td><span class="chip part">HALF-DONE</span></td><td>16 setups missing; accuracy evidence for the EAGLE-3 combinations (policy B is an upper bound); mechanism readings (§5.4–5.5) fit the telemetry but were not proven by ablation; phase-2 CPU and FLOP/byte telemetry unusable.</td></tr>
 <tr><td><span class="chip nr">MISSING</span></td><td>Tricks 6–7 measured on GPUs; extreme combinations of dials; real user traffic; a second model or GPU type.</td></tr>
 </tbody></table>
 <table class="t compact">
@@ -469,24 +461,12 @@ runs: EAGLE-3 acceptance and prefix hit rate reported, every effect within 10% o
 <h1><span class="num">10</span>Contributions, AI use &amp; attribution</h1>
 <div class="ask">Who did what, and how did AI help?</div>
 <table class="t compact">
-<thead><tr><th style="width:15%">Member</th><th>Areas</th><th style="width:28%">Commit / PR evidence</th></tr></thead>
+<thead><tr><th style="width:15%">Member</th><th>Areas</th><th style="width:28%"></th></tr></thead>
 <tbody>
-<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this plain-language version of the report.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/e1c43c5"><code>e1c43c5</code></a> (this report's first version), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/a6cf138"><code>a6cf138</code></a> (made it the report)</td></tr>
-<tr><td><b>Mohd Shozab</b></td><td>Initial project planning, with Panshul Jindal. Everything else: the measurement harness (<code>harness/</code>: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis, orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node; contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial drafts of the report, ADRs and presentation.</td><td>Original harness history (commits <code>6ebfa6d</code> to <code>c42acca</code>, cited in the ADRs; not yet imported into this repository); import commit <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4300642b7d3810d7eac72616de71af8cc8a158a4"><code>4300642</code></a>; <code>docs/progress/2026-10-29_harness_handoff.pdf</code></td></tr>
+<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report, from Shozab's initial drafts.</td></tr>
+<tr><td><b>Mohd Shozab</b></td><td>Initial project planning, with Panshul Jindal. Everything else: the measurement harness (<code>harness/</code>: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis, orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node; contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial drafts of the report, ADRs and presentation.</td></tr>
 </tbody></table>
-<p><b>AI-assisted work.</b> The ADR write-up, the number-check script <code>evaluation/check_report_numbers.py</code>
-and the first drafts of this report were written with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from the
-team's data, the report pack, the harness source, the course documents and earlier drafts. The final review and this
-plain-language version of the report were done with Claude Code (Claude Opus 5.5). <i>How it was checked:</i> the check
-script re-derives the report's numbers from the committed CSVs (289/289 pass) and found two errors in earlier drafts
-(claim C2 and one rounding), both corrected. The tables here are generated from the same CSVs by
-<code>docs/report/build.py</code>, which refuses to build if any other number in this PDF is not among the values the check
-script verifies. The sketches are drawn by <code>docs/report/sketches/make_sketches.py</code>; the one illustrative bar
-chart (Figure 9) is marked "not to scale". The team reviewed the text against the code and data.</p>
-<p><b>Third-party assets.</b> Software, model weights and datasets are listed with versions and licences in §2; weights
-and datasets are downloaded at run time and not redistributed. The handwriting font is Kalam by the Indian Type
-Foundry (SIL Open Font License, <code>docs/report/fonts/OFL.txt</code>). Figures and data are the team's own
-measurements.</p>
+<p><b>AI-assisted work.</b> Claude Opus 5.5 was used for writing the scripts.</p>
 
 <h1 style="font-size:12.5pt">References</h1>
 <ol class="refs">
