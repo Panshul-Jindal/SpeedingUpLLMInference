@@ -1,6 +1,6 @@
 # Presentation Script: Combining LLM Serving Optimizations (Final Presentation)
 
-Project 24, Group 2 · Panshul Jindal, Mohd Shozab · 30 slides, about 20 minutes at 150 words per minute, plus questions.
+Project 24, Group 2 · Panshul Jindal, Mohd Shozab · 30 slides, about 21 minutes at 150 words per minute, plus questions.
 The same text is in each slide's speaker notes in `LLM_Serving_Final_Presentation.pptx`.
 
 ## Slide 1: Combining Infrastructure-Level Optimizations for LLM Serving
@@ -37,7 +37,7 @@ How we score a configuration. Value is its throughput divided by Default's at th
 
 ## Slide 9: Methodology (3/4): measurement harness
 
-This is the harness we built around vLLM, Figure 1 of the report. A configuration manager turns a set of switches into exact vLLM flags, a server manager launches one engine per GPU, a workload generator makes a fixed trace, and a closed-loop load driver replays it while the telemetry collector samples the GPU and the engine. Quality checks run against the same server. Everything lands in an append-only results store. The analysis on the right runs offline, which is why the numbers in this talk can be re-checked without a GPU.
+This is the harness we built around vLLM, Figure 3 of the report. A configuration manager turns a set of switches into exact vLLM flags, a server manager launches one engine per GPU, a workload generator makes a fixed trace, and a closed-loop load driver replays it while the telemetry collector samples the GPU and the engine. Quality checks run against the same server. Everything lands in an append-only results store. The analysis on the right runs offline, which is why the numbers in this talk can be re-checked without a GPU.
 
 ## Slide 10: Methodology (4/4): how one run works
 
@@ -65,7 +65,7 @@ Before we trust a speedup, the latency gates have to hold. The grey bars are Def
 
 ## Slide 16: Results (3/12): a hidden process on GPU 0
 
-This is the thing that went wrong. When we re-ran some phase-one cells in phase two, they didn't match. Each dot here is one phase-one run divided by its clean re-run. Until 11:24 on 7 November everything sits at one. After that, every run on GPU zero drops to between 0.56 and 0.69 of its real speed, while GPU one stays exactly at one. NVML had recorded the signature: four gigabytes of memory that weren't ours, a higher clock and lower power. Another user's process had started sharing the GPU. 71 runs, 18 percent of phase one, were affected, and the worst part is that the repetitions still agreed with each other, so our noise checks gave no warning.
+This is the thing that went wrong. When we re-ran some phase-one cells in phase two, they didn't match. Each dot here is one phase-one run divided by its clean re-run. Until 11:24 on 7 November everything sits at one. After that, every run on GPU zero drops to between 0.56 and 0.69 of its real speed, while GPU one stays exactly at one. NVML had recorded the signature: four gigabytes of memory that weren't ours, a higher clock and lower power. Another user's process had started sharing the GPU. 71 runs, 18 percent of phase one, were affected, and the worst part is that it was easy to miss: the repetitions varied only 0.2 to 3.8 percent, about ten times the spread of clean cells, but we weren't checking for that, so nothing warned us.
 
 ## Slide 17: Results (4/12): correcting the contaminated runs
 
@@ -77,7 +77,7 @@ This is each optimization's average multiplier at each workload, fitted on the c
 
 ## Slide 19: Results (6/12): all 32 configurations at the centre
 
-Here is every one of the 32 configurations at the centre, ranked. Nothing is slower than Default. The four fastest all combine FP8 weights with speculation and prefix caching, around 2.4 to 2.5 times. But they're grey, which means they failed our original accuracy gate, so they don't count. The fastest blue bar, spec plus prefix at 1.82, is the official winner. Whether those grey configurations are actually usable comes down to the accuracy re-test, which I'll show later.
+Here is every one of the 32 configurations at the centre, ranked. Nothing is slower than Default. The four fastest all combine FP8 weights with speculation and prefix caching, around 2.4 to 2.5 times. But they're grey, which means they failed our original accuracy gate, so they don't count. The fastest blue bar, spec plus prefix at 1.82, is the official winner. Two of them pair FP8 weights with FP8 KV, which the accuracy re-test shows does lose accuracy; the other two pair FP8 weights with speculation, which we never re-tested, so they stay unproven. I'll show the accuracy results later.
 
 ## Slide 20: Results (7/12): who earns the gain
 
@@ -85,11 +85,11 @@ This splits each winner's gain between its parts using Shapley values. At the ce
 
 ## Slide 21: Results (8/12): combinations multiply
 
-One of our main questions was whether optimizations add, multiply or cancel. Each dot is a combination; on the x axis is the product of its single-optimization speedups, on the y axis what we measured. If they simply multiplied, the dots would sit on the dashed line. None of the fifty falls meaningfully below it, so in our workload they never cancel. Eighteen are clearly above it, and every one of those contains speculative decoding; the biggest is 31 percent above. One reason: with speculation, each engine step does a much bigger matrix multiply, 928 tokens instead of 284, and that's where FP8 helps most.
+One of our main questions was whether optimizations add, multiply or cancel. Each dot is a combination; on the x axis is the product of its single-optimization speedups, on the y axis what we measured. If they simply multiplied, the dots would sit on the dashed line. None of the fifty falls meaningfully below it, so in every combination we could test, at four of the seven workloads, they never cancelled. Eighteen are clearly above it, and every one of those contains speculative decoding; the biggest is 31 percent above. For FP8 weights with speculation, our interpretation is that each engine step does a much bigger matrix multiply, 928 tokens instead of 284, which is where FP8 should help most.
 
 ## Slide 22: Results (9/12): prefix caching and speculation
 
-The strongest interaction we found is between prefix caching and speculation. Alone, prefix caching gives 1.52 times at 90% reuse. On top of EAGLE-3 it gives 1.85. The telemetry shows where it comes from: prefix caching shortens each request's decode phase by 27 percent without speculation and by 45 percent with it. Our explanation, and it is an interpretation, is that vLLM mixes prompt work and decoding in the same steps; speculation makes the decoding part smaller, so the prompt work that caching removes becomes a bigger share. The effect is flat up to 25% reuse and clearly there at 50%; we didn't pin down where in between it starts.
+The strongest interaction we found is between prefix caching and speculation. Alone, prefix caching gives 1.52 times at 90% reuse. On top of EAGLE-3 it gives 1.85. The telemetry points to where it comes from: prefix caching shortens each request's decode phase by 27 percent without speculation and by 45 percent with it. Our explanation, and it is an interpretation, is that vLLM mixes prompt work and decoding in the same steps; speculation makes the decoding part smaller, so the prompt work that caching removes becomes a bigger share. The effect is flat up to 25% reuse and clearly there at 50%; we didn't pin down where in between it starts.
 
 ## Slide 23: Results (10/12): where EAGLE-3 stops helping
 
@@ -97,23 +97,23 @@ This is where an optimization stops working. EAGLE-3 gives 1.35 times at 2k-toke
 
 ## Slide 24: Results (11/12): output quality
 
-On output quality. Our first evaluation used trimmed benchmarks, 500 GSM8K questions, and on those FP8 weights and FP8 KV each seemed to lose more than a point, so we excluded them. But with that few questions the confidence interval is wider than the gate. So in phase two we re-ran the full benchmarks and compared each answer with Default's answer to the same question. Each FP8 change on its own is within noise. Together, they lose 2.58 points on GSM8K, and that one is statistically significant. Speculative decoding changed 47 answers out of 1,319, which isn't significant. We didn't re-test the FP8-plus-speculation combinations, so those faster configurations remain unproven.
+On output quality. Our first evaluation used trimmed benchmarks, 500 GSM8K questions, and on those FP8 weights and FP8 KV each seemed to lose more than a point, so we excluded them. But with that few questions the confidence interval is wider than the gate. So in phase two we re-ran the full benchmarks and compared each answer with Default's answer to the same question. For each FP8 change on its own the result is inconclusive: no significant drop, but the interval is too wide to rule out losing a point. Together, they lose 2.58 points on GSM8K, and that one is statistically significant. Speculative decoding changed 47 answers out of 1,319, which isn't significant. We didn't re-test the FP8-plus-speculation combinations, so those faster configurations remain unproven.
 
 ## Slide 25: Results (12/12): what limits throughput
 
-What actually limits throughput? The harness has a simple rule that labelled every winner as limited by per-step overhead, meaning CPU-side work. We didn't trust that, so we profiled. In all 18 traces the GPU was running kernels between 96 and 99 percent of the time, mostly matrix multiplies, and every run in phase two hit the 400-watt power cap. You can see the clock dropping as load goes up, from about 1,500 megahertz with two requests to under 900 with 128. So the limit is matrix-multiply work at a power-capped clock, and an optimization helps roughly in proportion to how much of that work it removes.
+What actually limits throughput? The harness has a simple rule that labelled every winner as limited by per-step overhead, meaning CPU-side work. We didn't trust that, so we profiled. In all 18 traces the GPU was running kernels between 96 and 99 percent of the time, mostly matrix multiplies, and every run in phase two hit the 400-watt power cap. You can see the clock dropping as load goes up, from about 1,500 megahertz with two requests to under 900 with 128. Our reading is that the limit is matrix-multiply work at a power-capped clock, so an optimization helps roughly in proportion to how much of that work it removes.
 
 ## Slide 26: Can the numbers be trusted?
 
-Given what happened with the shared GPU, we wanted solid evidence for everything else. This plot is one cell that looked noisy in phase one. In phase two we ran it five times with the other GPU busy and five times with it idle, and the results are the same, within one percent. The noise in phase one was the interference. Beyond that, a check script recomputes every number in the report from the exported data, and all 288 match; it actually caught two mistakes in our earlier drafts. The harness's unit tests run without a GPU, and a dry run exercises the full seven-optimization plan, including the two we didn't measure.
+Given what happened with the shared GPU, we wanted solid evidence for everything else. This plot is one cell that looked noisy in phase one. In phase two we ran it five times with the other GPU busy and five times with it idle, and the results are the same, within one percent. The noise in phase one was the interference. Beyond that, a check script recomputes every number in the report from the exported data, and all 289 match; it actually caught two mistakes in our earlier drafts. The harness's unit tests run without a GPU, and a dry run exercises the full seven-optimization plan, including the two we didn't measure.
 
 ## Slide 27: Key findings
 
-To sum up what we found. The best configurations give between 1.39 and 2.62 times Default's throughput without breaking any latency gate, and speculation plus prefix caching is the winner almost everywhere. Optimizations don't cancel each other; their speedups multiply, and with speculation they do a bit better than multiplying. EAGLE-3 stops being useful beyond about 4k-token prompts. The two FP8 changes are each fine on their own but not together. Throughput is limited by matrix-multiply work at the power cap. And the one we'd most like other people to remember: a process we didn't own silently slowed 18 percent of our runs, and repeated measurements agreeing with each other didn't reveal it.
+To sum up what we found. The best configurations give between 1.39 and 2.62 times Default's throughput without breaking any latency gate, and speculation plus prefix caching is the winner almost everywhere. In every combination we could test, optimizations didn't cancel each other; their speedups multiply, and with speculation they do a bit better than multiplying. EAGLE-3 stops being useful beyond about 4k-token prompts. The two FP8 changes together cost accuracy; on their own, the test couldn't tell either way. Our reading is that throughput is limited by matrix-multiply work at the power cap. And the one we'd most like other people to remember: a process we didn't own silently slowed 18 percent of our runs, and only re-running cells in a new session revealed it.
 
 ## Slide 28: What we would tell someone deploying vLLM
 
-If someone asked us how to configure vLLM based on this, these are the five things we'd say, with the caveat that it's one model and synthetic prompts. Prefix caching: turn it on whenever prompts repeat, there's no downside we could measure. EAGLE-3: use it for short and medium prompts, especially when load is low, and turn it off past about 4k tokens. FP8 weights work well and pair nicely with speculation, but be careful adding FP8 KV cache on top if your task needs multi-step reasoning. Don't spend time tuning the batch limit unless you have more than 256 requests in flight. And to estimate a combination, multiply.
+If someone asked us how to configure vLLM based on this, these are the five things we'd say, with the caveat that it's one model and synthetic prompts. Prefix caching: turn it on whenever prompts repeat, there's no downside we could measure. EAGLE-3: use it for short and medium prompts, especially when load is low, and turn it off past about 4k tokens. FP8 weights work well and pair nicely with speculation for speed, though we haven't tested that pair's accuracy yet, and be careful adding FP8 KV cache on top if your task needs multi-step reasoning. Don't spend time tuning the batch limit unless you have more than 256 requests in flight. And to estimate a combination, multiply.
 
 ## Slide 29: Limitations and future work
 
