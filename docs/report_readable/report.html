@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Combining LLM Serving Optimizations: Readable Edition</title>
+<link rel="stylesheet" href="report.css">
+</head>
+<body>
+
+<!-- =============================== COVER =============================== -->
+<div class="cover-kicker">CS5903 Distributed AI Training · Final project report · readable edition</div>
+<div class="cover-title">Combining Infrastructure-Level Optimizations for LLM Serving</div>
+<div class="cover-hand">What makes an LLM server faster, when, and why. Told plainly.</div>
+
+<table class="meta">
+<tr><th>Project / Group</th><td>Project 14 · Group 2</td></tr>
+<tr><th>Members</th><td>Panshul Jindal, Mohd Shozab</td></tr>
+<tr><th>Repository</th><td><a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference">github.com/Panshul-Jindal/SpeedingUpLLMInference</a> <span class="muted">(private; evaluators granted access)</span></td></tr>
+<tr><th>Final tag / commit</th><td><code>cs5903-final-2026</code> · {{commit}}</td></tr>
+<tr><th>Demo</th><td>No hosted demo (this is a measurement study). GPU-free: <code>pytest tests/</code>, the dry pipeline on a simulated engine, and <code>python evaluation/check_report_numbers.py</code> (§4).</td></tr>
+<tr><th>Date · companion</th><td>21 November 2026 · same facts as the formal report <code>docs/Project_Report.pdf</code>, written for a first-time reader</td></tr>
+</table>
+
+<div class="summary">
+<span class="label">The short version</span>
+<div class="exec"><p>An LLM server has one job: answer many people at once, quickly. Engineers have a toolbox of tricks for it,
+such as smaller numbers (FP8), a helper that guesses ahead (speculative decoding) and reusing work across similar
+prompts (prefix caching). But each trick was published on its own, against a different baseline, so nobody could
+say which to combine, or when. We built a measuring rig on vLLM 0.31.0 that switches five tricks on and off
+independently, and measured them alone and together on Llama-3.1-8B-Instruct at seven kinds of workload on two H100
+GPUs: 510 measured runs. The best setups serve 1.39× to 2.62× as many tokens per second as the plain server, inside
+every latency and accuracy limit. In every combination we could test, the tricks never cancelled out: their gains
+multiply, and with speculative decoding they compound. Speculation fades beyond ~4k-token prompts, and the two FP8
+tricks together cost 2.6 points on a maths benchmark. We also caught another user's job silently slowing 18% of our
+runs. Five of the seven planned tricks were measured; 289 automated checks re-derive every number.</p></div>
+</div>
+
+<span class="label" style="font-size:14pt">Three questions to keep in mind</span>
+<div class="questions">
+  <div class="q"><div class="qn">1</div><div class="qt">Which tricks actually make it faster?</div>
+    <div class="qa">FP8 weights everywhere (1.22–1.34×). Speculation when the GPU has spare room (up to 2.31×). Prefix
+    caching when prompts repeat (up to 1.70×). Tuned batching: never, in our tests.</div></div>
+  <div class="q"><div class="qn">2</div><div class="qt">Stack them: do gains add, multiply or cancel?</div>
+    <div class="qa">They multiply. With speculation in the mix they do even better than multiplying, by up to +31%.
+    None of the 50 combinations we could test cancelled.</div></div>
+  <div class="q"><div class="qn">3</div><div class="qt">Where do they stop, and do they hurt?</div>
+    <div class="qa">Speculation fades beyond ~4k-token prompts. FP8 weights and FP8 KV cache are each harmless alone,
+    but together lose 2.6 points on GSM8K.</div></div>
+</div>
+
+
+<!-- =============================== 1 =============================== -->
+<h1 class="newpage"><span class="num">1</span>Problem, scope &amp; success criteria</h1>
+<div class="ask">What were we trying to find out?</div>
+
+<p>Serving a language model happens in two phases (Figure 1). First the server <b>reads your whole prompt at
+once</b>: lots of arithmetic, so it is limited by how fast the GPU computes. Then it <b>writes the answer one token
+at a time</b>: each step adds one token to every request in the batch, and every step must stream all 8 billion model
+weights out of memory again. That second
+phase is limited by memory speed, not maths. Each optimization attacks a different one of these costs, which is
+why a trick that shines in one situation can do nothing in another.</p>
+
+<figure class="sketch">
+<img src="sketches/request_lifecycle.svg" alt="Prefill reads the prompt, decode writes one token per step">
+<figcaption><b>Figure 1.</b> How one request is served. Prefill is compute-bound; decode is memory-bound and repeats for
+every output token. The two latency limits we enforce are marked at the bottom.</figcaption>
+</figure>
+
+<div class="words">
+<span class="label">Words we use</span>
+<dl>
+<dt>Token:</dt> <dd>a word piece; the model reads and writes tokens.</dd>
+<dt>Throughput:</dt> <dd>output tokens per second for the whole server (tok/s). Higher is better.</dd>
+<dt>TTFT:</dt> <dd>time to first token: how long a user waits before the answer starts.</dd>
+<dt>TPOT:</dt> <dd>time per output token after that: how smoothly the answer streams.</dd>
+<dt>p99:</dt> <dd>the value 99% of requests beat; it describes the unlucky user, not the average one.</dd>
+<dt>Default:</dt> <dd>the plain server, every trick off. Every speedup is measured against it.</dd>
+<dt>Speedup:</dt> <dd>throughput ÷ Default's throughput on the same workload.</dd>
+<dt>KV cache:</dt> <dd>the model's working notes on a prompt, kept in GPU memory.</dd>
+</dl>
+</div>
+
+<p>The problem statement (<code>docs/problem_statement.md</code>) asks us to make a served open-weight model faster by
+<i>combining</i> such optimizations, and to find <b>which ones contribute, under which conditions, and where they
+stop helping</b>. These are the five we measured:</p>
+
+<figure class="sketch">
+<img src="sketches/five_switches.svg" alt="The five optimizations as switches">
+<figcaption><b>Figure 2.</b> The five switches. A configuration is written as on/off bits in this order, e.g.
+<code>00110</code> = EAGLE-3 + prefix caching. The harness adds two bits for the two unmeasured tricks, so it
+writes the same setup as <code>0011000</code>.</figcaption>
+</figure>
+
+<table class="t compact">
+<thead><tr><th style="width:21%">Question</th><th>Our answer</th></tr></thead>
+<tbody>
+<tr><td>Who is this for?</td><td>Engineers choosing vLLM settings for a deployment; researchers comparing optimizations on one baseline; whoever re-runs or extends this study.</td></tr>
+<tr><td>What did we measure?</td><td>The five switches above, at seven workloads that vary prompt length (256 / 2,048 / 8,192 tokens), load (2 / 32 / 128 requests in flight) and prompt sharing (0 / 50 / 90%).</td></tr>
+<tr><td>Built but not measured</td><td>Chunked prefill and the parallelism strategy, optimizations 6 and 7 of the plan. They exist in the harness and its tests, but measuring them would have taken about 8× the GPU time (§7).</td></tr>
+<tr><td>Out of scope</td><td>Changing the model itself (e.g. GQA [14]), KV eviction or blending (e.g. CacheBlend [11]), other serving engines, multiple nodes, real user traffic.</td></tr>
+<tr><td>Constraints</td><td>One shared Slurm node with GPUs not isolated between users; about 100 GPU-node-hours; no gated models (no tokens or secrets); one model, one engine version, one GPU type.</td></tr>
+<tr><td>How we score a setup</td><td><b>Value</b> = its speedup over Default, counted only if the unlucky user is still served well (p99 TTFT ≤ 5 s, p99 TPOT ≤ 100 ms) and the model is not measurably worse (accuracy drop ≤ 1 point per task); otherwise Value = 1.0.</td></tr>
+<tr><td>Milestones</td><td>M1–M8, defined by the team from Assignment 2 and the progress report (no IDs were issued by the course); status in §6.</td></tr>
+<tr><td>Done when</td><td>Every in-scope setup has a Value at every workload from ≥ 2 clean repeats; effects, interactions, the best setup and what limits it are reported per workload; every no-benefit case is explained; and the number checks pass.</td></tr>
+</tbody></table>
+
+<!-- =============================== 2 =============================== -->
+<h1><span class="num">2</span>Related work, baselines &amp; alternatives</h1>
+<div class="ask">What did others do, and why not just combine their numbers?</div>
+
+<p>Every trick here comes from a strong paper: PagedAttention and vLLM [1] built on Orca's iteration-level scheduling
+[4]; SGLang's RadixAttention [2] reuses cached prompts; Sarathi-Serve [3] chunks prefills; DistServe [12] splits
+prefill and decode across GPUs; speculative decoding [5, 6] and EAGLE / EAGLE-3 [7, 8] guess tokens ahead; FP8 [9],
+KIVI [10] and AWQ [25] shrink numbers. Pope et al. [13] and the roofline model [23] explain why decode is
+memory-bound. The catch: <b>each paper measures against its own baseline</b>, so the published speedups cannot simply
+be multiplied together. That gap is this project.</p>
+
+<table class="t compact">
+<thead><tr><th>Approach we considered</th><th>What it can answer</th><th>Cost</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Combine published speedups</td><td>nothing reliable: the baselines differ</td><td>none</td><td>rejected</td></tr>
+<tr><td>Test one trick at a time</td><td>single effects only; blind to how tricks interact</td><td>8 setups per workload</td><td>rejected</td></tr>
+<tr><td>Every combination at every workload</td><td>everything</td><td>896 setups (7 tricks)</td><td>over budget</td></tr>
+<tr><td><b>All combinations at the centre, half of them elsewhere, then dig into anything odd</b></td><td>every single effect and every pairwise interaction; exact attribution at the centre; mechanisms for surprises</td><td>128 setups + 60 follow-ups (5 tricks)</td><td><b>chosen</b> (ADR-006, 012, 016)</td></tr>
+<tr><td>Pen-and-paper roofline model</td><td>upper bounds; misses scheduler and speculation effects</td><td>none</td><td>used to interpret</td></tr>
+</tbody></table>
+
+<p><b>The baseline.</b> Default is vLLM 0.31.0 serving Llama-3.1-8B-Instruct in BF16 with every trick off, including
+the two vLLM turns on by itself (prefix caching and chunked prefill), the engine's own batch limit and one GPU per
+server. In all 45 Default runs the engine itself confirmed these settings (ADR-003).</p>
+
+<table class="t compact">
+<thead><tr><th>What we reused</th><th>Version</th><th>Licence</th><th>For</th></tr></thead>
+<tbody>
+<tr><td>vLLM [1]</td><td>0.31.0+cu129</td><td>Apache-2.0</td><td>the serving engine; every trick is a flag</td></tr>
+<tr><td>PyTorch / FlashInfer</td><td>2.13.0+cu129 / 0.7.0.post1</td><td>BSD-3 / Apache-2.0</td><td>runtime and attention kernels</td></tr>
+<tr><td>Llama-3.1-8B-Instruct [15] (ungated <code>unsloth</code> mirror)</td><td>–</td><td>Llama 3.1 Community</td><td>the model being served</td></tr>
+<tr><td>EAGLE-3 head <code>yuhuili/EAGLE3-LLaMA3.1-Instruct-8B</code> [8]</td><td>3 draft tokens</td><td>see model card</td><td>the guessing helper</td></tr>
+<tr><td>lm-evaluation-harness [19]</td><td>0.4.13</td><td>MIT</td><td>GSM8K [16], HumanEval [17], MMLU [18]</td></tr>
+<tr><td>NumPy, pandas, statsmodels, pydantic, aiohttp, nvidia-ml-py, pytest</td><td><code>requirements.in</code></td><td>BSD / MIT / Apache</td><td>analysis, configuration, client, telemetry, tests</td></tr>
+</tbody></table>
+<p><b>What we built ourselves:</b> the measuring harness (<code>harness/</code>) and its 69 unit tests, the Slurm
+support, the seven-workload study and its follow-up investigation, the contamination detection and clean-up, and
+the GPU-free number checks (<code>evaluation/</code>).</p>
+
+<!-- =============================== 3 =============================== -->
+<h1><span class="num">3</span>Architecture &amp; implementation</h1>
+<div class="ask">How does the measuring machine work?</div>
+
+<p>Think of the harness as a very patient lab assistant. For each combination of switches it starts a fresh vLLM
+server with exactly those flags, replays the <i>same</i> recorded set of requests, measures for two minutes,
+writes everything down, and moves on. Figure 3 follows one measurement end to end.</p>
+
+<figure class="sketch">
+<img src="sketches/measurement.svg" alt="The life of one measurement">
+<figcaption><b>Figure 3.</b> Components and data flow. Steps 1–5 run inside one Slurm job on the shared GPU node (the
+dashed boundary is also the main trust boundary, §5.2); steps 6–7 run offline on any machine.</figcaption>
+</figure>
+
+<table class="t compact">
+<thead><tr><th style="width:19%">Part</th><th>What it does</th><th style="width:33%">Where</th></tr></thead>
+<tbody>
+<tr><td>CLI / orchestrator</td><td>Runs the steps in order; groups runs by flags to avoid restarts; a crash becomes a recorded result, not a lost run.</td><td><code>harness/cli.py</code>, <code>harness/orchestrator.py</code></td></tr>
+<tr><td>Configuration</td><td>Validates the YAML settings and turns on/off bits into exact <code>vllm serve</code> flags, in one place.</td><td><code>configs/</code>, <code>harness/config.py</code>, <code>harness/engine/vllm_flags.py</code></td></tr>
+<tr><td>Server manager</td><td>Starts one server per GPU, explains start-up failures, reads the settings back from the engine, resets the prefix cache between repeats.</td><td><code>harness/engine/vllm_server.py</code></td></tr>
+<tr><td>Workload + load driver</td><td>Builds prompts of exact token length with shared prefixes, saves them as one hashed trace per workload; keeps exactly C requests in flight and times every token.</td><td><code>harness/workload.py</code>, <code>harness/load_driver.py</code></td></tr>
+<tr><td>Telemetry, quality</td><td>GPU clocks, power and memory, plus vLLM's own metrics; benchmark answers logged per question for paired comparison.</td><td><code>harness/telemetry.py</code>, <code>harness/deep_telemetry.py</code>, <code>harness/quality.py</code></td></tr>
+<tr><td>Analysis + checks</td><td>Value and gates, effects, interactions, Shapley shares, binding constraint; re-derivation of every report number.</td><td><code>harness/analysis/</code>, <code>evaluation/</code></td></tr>
+</tbody></table>
+<p><b>Data.</b> One row per run in <code>runs.jsonl</code>, holding versions, exact flags, settings reported by the
+engine, trace hash, seed, status, throughput, latency and telemetry. It is append-only, so any command can resume
+where it stopped. <b>Safety.</b> (i) The GPU node is shared and does not isolate GPUs, which bit us (§5.2). (ii)
+HumanEval runs code the model wrote, without a sandbox, in the measurement job (a listed risk, §8). (iii) vLLM's
+dev-mode endpoints are open on per-job ports. No secrets or personal data are involved. Design decisions:
+<code>docs/Architecture_Decision_Records.md</code> (ADR-000 to ADR-020).</p>
+
+<!-- =============================== 4 =============================== -->
+<h1><span class="num">4</span>Methodology &amp; experiment setup</h1>
+<div class="ask">How did we keep the comparison fair?</div>
+
+<p>A speedup only means something if nothing else changed. So every setup at a workload got the <b>same model, same
+engine build, same GPU type and the exact same requests</b> (a recorded, hashed trace), the same 30-second warm-up
+and the same 120-second measuring window, repeated two to three times. Only the switches differ. The workloads move
+one dial at a time away from a centre point (Figure 4).</p>
+
+<figure class="sketch">
+<img src="sketches/workload_map.svg" alt="The seven workload points">
+<figcaption><b>Figure 4.</b> The seven workloads, with the fastest setup that passed every gate at each (policy A, §5.1).
+All 32 combinations were measured at the centre; 16 at each other point.</figcaption>
+</figure>
+
+<table class="t compact">
+<thead><tr><th style="width:18%">Item</th><th>Setting</th></tr></thead>
+<tbody>
+<tr><td>Questions</td><td>How much does each trick help where? Do tricks add, multiply or cancel? What is best per workload, and what limits it? Where do tricks stop helping? Does anything hurt accuracy? Can the measurements be trusted?</td></tr>
+<tr><td>Hardware</td><td>1 Slurm node, 2 × NVIDIA H100 NVL 94 GB (400 W power limit, PCIe), 16 CPU cores per job, driver 590.48.01. It replaced the project's 4 × RTX 6000 Ada node on 5 Nov (ADR-014).</td></tr>
+<tr><td>Software</td><td>vLLM 0.31.0+cu129, PyTorch 2.13.0+cu129 (recorded in all 510 runs), FlashInfer 0.7.0.post1, lm-eval 0.4.13.</td></tr>
+<tr><td>Model</td><td><code>unsloth/Llama-3.1-8B-Instruct</code>, max length 16,384, seed 20261029, one GPU per server.</td></tr>
+<tr><td>Workload</td><td>Synthetic random-word prompts with exact token lengths; 4 shared prefixes making up 75% of a reusing prompt; 256-token answers; exactly C requests in flight. 0 request errors in 510 runs.</td></tr>
+<tr><td>Phase 1</td><td>128 setups × 3 repeats = 384 runs, 7 Nov 2026, 03:23–14:52 UTC, one setup per GPU, two at a time.</td></tr>
+<tr><td>Phase 2</td><td>60 setups picked because something looked odd, 2–5 repeats with detailed telemetry = 126 runs, 11 Nov, 19:08–23:31 UTC; plus 18 profiler traces (ADR-016).</td></tr>
+<tr><td>Accuracy</td><td>First a trimmed check (GSM8K 500, HumanEval 164, 4 MMLU subjects). Then a paired re-test on full GSM8K (1,319), HumanEval (164) and 8 MMLU subjects (1,687), comparing each answer with Default's answer to the same question (McNemar test [21]).</td></tr>
+<tr><td>Analysis</td><td>Regression on log throughput per workload [20]; interaction ratio = how far a pair beats the product of its parts; Shapley shares [22] of the winner's gain; profiler and power data for the limiting factor.</td></tr>
+</tbody></table>
+
+<p><b>Exact commands</b> (the first three need GPUs; the last four run on any laptop):</p>
+<pre class="cmd">scripts/setup_env.sh &amp;&amp; scripts/slurm/prefetch.sh                 # set-up
+scripts/slurm/submit.sh 3                                         # phase 1, as chained Slurm jobs, each running:
+python -m harness pipeline --profile fast --env h100
+python -m harness pipeline --profile investigate --env h100       # phase 2 (+ quality, analysis)
+pytest tests/                                                     # 69 unit tests
+python -m harness pipeline --profile dry --env main --dry-run     # whole plan on a simulated engine
+python evaluation/check_report_numbers.py                         # re-derives every report number
+python evaluation/make_report_figures.py                          # report figures 10-12 and Appendix A</pre>
+
+<!-- =============================== 5 =============================== -->
+<h1><span class="num">5</span>Results, observations &amp; analysis</h1>
+<div class="ask">So, what did we find?</div>
+
+<p class="small">Labels: <span class="chip m">MEASURED</span> read straight off the data ·
+<span class="chip i">INTERPRETATION</span> our explanation of a measured pattern · <span class="chip q">OPEN</span> we do not
+know yet. All results are for our workload: one 8B model, synthetic prompts, a power-capped H100 NVL.</p>
+
+<h2>5.1 The headline: 1.4× to 2.6× faster, inside every limit</h2>
+<p><span class="chip m">MEASURED</span> The table puts the plain server next to the best setup that passes every
+gate under our original accuracy rule (<b>policy A</b>: the trimmed check with a 1-point gate). Not a single setup at
+any workload failed a latency gate; all 86 rejections were for accuracy. <b>Policy B</b> uses the more careful paired
+accuracy re-test (§5.6) and lets FP8 weights back in. It is only an upper bound, because FP8 weights + EAGLE-3 was
+never paired-tested.</p>
+{{tbl_baseline}}
+<p class="small">EAGLE-3 + prefix caching wins at 6 of the 7 workloads (tuned batching changes nothing, so the 90%
+winner is really the same setup). At long prompts prefix + batch edges ahead by under 1%, because EAGLE-3 adds almost
+nothing there (§5.5). Raw data: <code>data/cells_combined_clean.csv</code> and <code>data/final_configs_by_policy.csv</code>
+(<code>data/</code> = <code>evaluation/report_pack/data/</code>).</p>
+
+<h2>5.2 Plot twist: somebody else was using our GPU</h2>
+<div class="story">
+<span class="label">How we almost reported the wrong numbers</span>
+<p><span class="chip m">MEASURED</span> Our first results looked great: 4.50× at 90% prompt sharing. Then phase 2 re-ran
+some of the same setups in a new session and got much lower numbers. Lining the runs up by time and GPU told the
+story (Figure 5). From 11:24 UTC on 7 November, every run on GPU 0 ran at 0.56–0.69× its true speed, while GPU 1
+stayed at 1.006×. GPU 0 also showed 4.3 GB of memory we had not allocated, a higher clock and lower power: someone
+else's job was sharing it. The cluster does not isolate GPUs.</p>
+</div>
+<figure class="sketch">
+<img src="sketches/intruder.svg" alt="GPU 0 was shared with another user's job">
+<figcaption><b>Figure 5.</b> The intruder. Speeds are medians relative to a clean re-run of the same setup.</figcaption>
+</figure>
+<p>71 of our 384 phase-1 runs (18%), in 24 setups, were affected. Why didn't we notice? Within each setup the repeats
+still agreed with each other: the 23 fully affected setups varied by 0.2–3.8% (median 2.1%). That is small next to a
+40% slowdown, though about ten times the 0.2% of clean setups, a signal a per-setup alarm could have caught. We did
+<b>not</b> rescale the slow runs, because the slowdown was not constant. Instead we replaced 8 setups with their clean
+re-runs, dropped 16 (listed in <code>data/cells_missing_after_cleaning.csv</code>) and added 16 that phase 2 measured
+cleanly (ADR-017). The 40 unaffected phase-1 runs that were re-run match within 2.2%. The corrections were large:</p>
+<figure class="half">
+<img src="../report/figures/02_best_speedup_corrected.png" alt="Best speedup per workload before and after the correction">
+<figcaption><b>Figure 6.</b> Best speedup per workload as first reported and after the correction: 4.50× became 2.62× at
+90% sharing, and 2.64× became 1.67× at high load [C4].</figcaption>
+</figure>
+<div class="oneline"><span class="label">Lesson</span>Tight repeats are not proof of a clean measurement. Re-running a
+sample of setups in a separate session is cheap, and it is what saved this study.</div>
+
+<h2>5.3 Each trick has its moment</h2>
+<figure>
+<img src="../report/figures/06_main_effects_heatmap.png" alt="Effect of each optimization at each workload">
+<figcaption><b>Figure 7.</b> How much each trick multiplies throughput at each workload, averaged over everything else
+switched on or off. The fits explain over 99.7% of the variation at every workload (R² ≥ 0.9976).</figcaption>
+</figure>
+<p><span class="chip m">MEASURED</span></p>
+<ul>
+<li><b>FP8 weights</b> are the dependable one: 1.22–1.34× at every workload.</li>
+<li><b>EAGLE-3</b> is the biggest lever when the GPU has spare room (2.31× with 2 requests in flight, 1.82× on short
+prompts), and does nothing on average at 8,192-token prompts (1.00×).</li>
+<li><b>Prefix caching</b> follows prompt sharing: 1.00× with no sharing (no measurable overhead either) up to 1.70× at
+90%.</li>
+<li><b>FP8 KV cache</b> only matters when the notes are big: 1.13× at long prompts; at short prompts and low load the KV
+cache was at most 3% full, so there was nothing to save.</li>
+<li><b>Tuned batching</b> never helps (1.00–1.02×): vLLM's default limit of 256 requests is above every in-flight count
+we tested, so the limit never kicks in. A clean null result with a clear cause.</li>
+</ul>
+<p>Who earns the winner's gain? At the centre, EAGLE-3 accounts for 59% and prefix caching for 41% (exact Shapley
+shares). With no sharing or an idle GPU, speculation earns almost all of it (96% and 95%); where many requests share
+a prefix or the batch is big, prefix caching dominates (61% at 128 in flight, 89% at long prompts).</p>
+
+<h2>5.4 Tricks multiply, and speculation makes them compound</h2>
+<div class="cols">
+<div>
+<p><span class="chip m">MEASURED</span> If tricks were independent, a combination should be worth the <i>product</i> of
+the single speedups. For the 50 combinations whose single speedups were all measured (at 4 of the 7 workloads):
+none fell more than 5% short of the product, 32 matched it, and 18 beat it by more than 5%. <b>All 18 contain
+EAGLE-3</b>, the best by +31% (FP8 weights + EAGLE-3 + prefix + batching at 90% sharing). On average, combinations
+with EAGLE-3 came in 1.111× above the product, those without 1.013×.</p>
+<p>So when you estimate a combination, <b>multiply, don't add</b>. At the centre, multiplying misses by 4.8% (median;
+max 21.6%), adding by 9.1% (max 37.4%).</p>
+</div>
+<div>
+<figure>
+<img src="../report/figures/05_composition_observed_vs_predicted.png" alt="Observed vs predicted speedups">
+<figcaption><b>Figure 8.</b> Observed speedup versus the product of single speedups [C5]. Points above the line beat
+"independent".</figcaption>
+</figure>
+</div>
+</div>
+<p><span class="chip m">MEASURED</span> Two pairs explain most of the extra. <b>Prefix caching × EAGLE-3:</b> their
+interaction is 1.01 up to 25% sharing, then 1.12 at 50% and 1.22 at 90%. At 90% sharing prefix caching shortens each
+request's decode phase by 27% on its own, but by 45% with EAGLE-3 on. <b>FP8 weights × EAGLE-3:</b> FP8 gives 1.20×
+alone but 1.34× on top of EAGLE-3 at the centre (interaction 1.115), and with EAGLE-3 each engine step processes 928
+instead of 284 tokens.</p>
+<figure class="sketch">
+<img src="sketches/why_compound.svg" alt="Why prefix caching helps more with speculation">
+<figcaption><b>Figure 9.</b> <span class="chip i">INTERPRETATION</span> Why prefix caching is worth more with EAGLE-3
+(Amdahl's law [24]). vLLM mixes prompt work and decoding in the same steps; speculation shrinks the decoding part, so
+the prompt part, which prefix caching removes, is a bigger share of what is left. Likewise, EAGLE-3 makes each step a
+bigger matrix multiply, which is where FP8 maths helps most. Both readings fit the telemetry; neither was proven by a
+controlled ablation. <span class="chip q">OPEN</span> exactly where between 25% and 50% sharing the effect appears.</figcaption>
+</figure>
+
+<h2>5.5 Where speculation runs out of road: long prompts</h2>
+<p><span class="chip m">MEASURED</span> EAGLE-3 gives 1.35× at 2,048-token prompts, 1.14× at 4,096 and 1.00× at 6,144. The
+reason is visible in its guesses (Figure 10): the first guessed token is still accepted often up to 4k tokens, but
+the second and third, which build on the helper's own earlier guesses, collapse (second-token acceptance falls from
+0.76 to 0.16 between 2k and 4k). Tokens produced per step drop from 3.35 to 2.12 to 1.56.</p>
+<figure>
+<img src="../report/figures/03_eagle3_long_context.png" alt="EAGLE-3 acceptance and speedup versus prompt length">
+<figcaption><b>Figure 10.</b> EAGLE-3 acceptance by guess position (left) and speedup versus prompt length (right) [C11].</figcaption>
+</figure>
+<p><span class="chip i">INTERPRETATION</span> (low confidence) The helper was probably trained on shorter texts; we did not
+check its training length. <b>Practical rule:</b> switch speculation off for prompts beyond ~4k tokens, or use a
+long-context helper. <span class="chip q">OPEN</span> EAGLE-3 also cuts the median wait for the first token at the centre
+(1,046 → 183 ms), which speculation alone does not obviously explain.</p>
+
+<h2>5.6 Faster, but is it still as smart?</h2>
+<p><span class="chip m">MEASURED</span> Our first, trimmed accuracy check threw out each FP8 trick on its own (for example,
+FP8 weights lost 3.0 points on HumanEval's 164 problems). That check was too small to be sure, so phase 2 re-tested
+on the full benchmarks, comparing every answer with Default's answer <i>to the same question</i>. Result: neither FP8
+trick alone can be told apart from the original (the uncertainty is still too wide to confirm or rule out a 1-point
+drop), so the original exclusions are not supported by the data. But <b>together they lose 2.58 GSM8K points</b>
+(95% CI −4.9 to −0.3, p = 0.03), the only significant drop; the chart with all three benchmarks is
+Figure 8 of the formal report. EAGLE-3 changed 47 of 1,319 GSM8K answers (not
+significant) and no HumanEval result.</p>
+{{tbl_accuracy}}
+<p><span class="chip i">INTERPRETATION</span> Each FP8 change adds a little rounding error, and multi-step arithmetic
+compounds the two. Caveat: one greedy run per setting; FP8 weights + EAGLE-3, FP8 KV + EAGLE-3 and all three were not
+paired-tested.</p>
+
+<h2>5.7 What is really holding the server back?</h2>
+<p><span class="chip m">MEASURED</span> The harness's first quick rule blamed "per-step overhead" (CPU time between GPU
+steps) for every winner. The profiler disagreed: in all 18 traces the GPU was running kernels 96–99% of the time,
+mostly matrix multiplications (cuBLAS <code>nvjet_*</code>). Every one of the 126 phase-2 runs hit the 400 W power cap
+(mean 394–400 W), and the clock falls as load rises, from 1,493 MHz at 2 requests in flight to 885 MHz at 128.
+<span class="chip i">INTERPRETATION</span> The limit is matrix-multiply work on a power-capped GPU, so a trick helps in
+proportion to the multiply work it removes, which is exactly what FP8, EAGLE-3 and prefix caching do. <span class="chip m">MEASURED</span>
+Running two setups side by side, one per GPU, was safe: the same setup re-run 5 times with the other GPU busy and 5
+times with it idle gave 2,690–2,740 and 2,666–2,713 tok/s (each varying under 1%).</p>
+
+<h2>5.8 Rules of thumb, and what we did not test</h2>
+<div class="rules">
+<span class="label">If you run vLLM on a workload like ours</span>
+<ol>
+<li>Turn <b>prefix caching</b> on whenever prompts repeat; it costs nothing when they don't.</li>
+<li>Turn <b>EAGLE-3</b> on for prompts up to about 2–4k tokens, especially at low load; off beyond that.</li>
+<li>Use <b>FP8 weights</b>: the steadiest single gain, and it pairs well with EAGLE-3 for speed (that pairing's
+accuracy is not yet paired-tested). Do not combine it with <b>FP8 KV cache</b> where multi-step reasoning matters.</li>
+<li>Do not bother tuning <b>max_num_seqs</b> while fewer than 256 requests are in flight.</li>
+<li>To estimate a combination, <b>multiply</b> the single speedups.</li>
+</ol>
+</div>
+<p><b>Not tested:</b> optimizations 6–7 on GPUs; two dials at an extreme together (e.g. long prompts <i>and</i> high
+load); the 16 dropped setups; paired accuracy for the EAGLE-3 combinations; real user traffic; one unit test that
+needs the model's tokenizer (skipped in the GPU-free environment).</p>
+
+<!-- =============================== 6 =============================== -->
+<h1><span class="num">6</span>Milestone verification matrix</h1>
+<div class="ask">Did we do what we set out to do?</div>
+<p>Milestones are team-defined (the course issued no milestone or test IDs for Project 14). Each "test" is something
+anyone can run without a GPU: <code>pytest</code> (69 tests: 68 passed, 1 skipped, 21 Nov), the dry pipeline, and the
+number checks (289/289 passed), whose IDs are listed. No change was mentor-approved, because no mentor feedback was
+received (§7); the team's own changes behind M4 and M6 are recorded in ADR-012 and ADR-018.</p>
+<table class="t compact">
+<thead><tr><th style="width:13%">Milestone</th><th style="width:13%">Test ID</th><th>Expected</th><th>Observed</th><th style="width:8%">Status</th><th style="width:17%">Evidence</th></tr></thead>
+<tbody>
+<tr><td>M1 Scope &amp; design</td><td>–</td><td>Problem, 7 tricks, workloads, Value, run plan</td><td>Assignments 1–2, progress report</td><td><span class="chip ok">PASS</span></td><td>ADR-000, <code>docs/progress/</code></td></tr>
+<tr><td>M2 Harness built</td><td><code>pytest tests/</code>; dry run</td><td>Unit tests, simulated end-to-end run, GPU smoke test</td><td>68/69 tests pass (1 needs the tokenizer); dry run: 1,536 runs of the 7-trick plan, 20 infeasible setups and 1 injected crash recorded; smoke test 7/7 steps (29 Oct)</td><td><span class="chip ok">PASS</span></td><td><code>tests/</code>, <code>SMOKE_TEST_REPORT.md</code></td></tr>
+<tr><td>M3 Baseline &amp; workload</td><td><code>S5.1-cv</code>, <code>S2-base</code>, <code>S4-trace</code></td><td>Default at 7 points, CV ≤ 2%; truly all off; same trace per point</td><td>max Default CV 1.53%; 45/45 Default runs confirmed by the engine; 1 trace per point, 0 errors in 510 runs</td><td><span class="chip ok">PASS</span></td><td>ADR-003, <code>data/cells_combined_clean.csv</code></td></tr>
+<tr><td>M4 Factorial measurement</td><td><code>S4-runs</code>, <code>S5.2</code></td><td>Planned design measured, ≥ 2 clean repeats per setup</td><td>384/384 runs ok; 112 clean phase-1 setups + 16 added; 16 lost to contamination; tricks 6–7 not run</td><td><span class="chip part">PARTIAL</span></td><td>ADR-012, <code>data/cells_missing_after_cleaning.csv</code></td></tr>
+<tr><td>M5 Value &amp; table</td><td><code>S5.1-*</code></td><td>Value only when gates pass; setups × workloads table</td><td>0 latency and 86 accuracy rejections; full table in Appendix A</td><td><span class="chip ok">PASS</span></td><td>App. A, <code>data/final_configs_by_policy.csv</code></td></tr>
+<tr><td>M6 Quality</td><td><code>S5.6-*</code></td><td>Accuracy vs Default for every numeric setting</td><td>8 settings trimmed; 5 paired on full benchmarks; EAGLE-3 combinations not paired</td><td><span class="chip part">PARTIAL</span></td><td>ADR-018, <code>data/quality_paired_vs_default.csv</code></td></tr>
+<tr><td>M7 Attribution &amp; best setup</td><td><code>S5.3-*</code>, <code>S5.7</code></td><td>Effects, interactions, Shapley, winner and limiting factor per workload</td><td>R² ≥ 0.9976; Shapley exact at 3 points; 11/11 no-benefit cases explained; limit from 18 traces</td><td><span class="chip ok">PASS</span></td><td><code>data/clean_main_effects.csv</code>, <code>data/clean_shapley.csv</code></td></tr>
+<tr><td>M8 Integrity</td><td><code>S5.2</code>, <code>S5.7</code></td><td>Contamination found and removed; GPU slots independent; numbers reproducible</td><td>71 runs flagged, 0 used; busy vs idle each under 1%; 289/289 checks</td><td><span class="chip ok">PASS</span></td><td>ADR-017, ADR-020</td></tr>
+</tbody></table>
+
+<!-- =============================== 7 =============================== -->
+<h1><span class="num">7</span>Mentor feedback &amp; engineering evolution</h1>
+<div class="ask">What did we hear, and what changed along the way?</div>
+<table class="t compact">
+<thead><tr><th style="width:8%">FB-ID</th><th style="width:17%">Mentor request</th><th style="width:12%">Response</th><th>Change / justification</th><th style="width:14%">Evidence</th></tr></thead>
+<tbody>
+<tr><td>–</td><td>No scored mentor feedback was received.</td><td>n/a</td><td>The progress report asked the mentor to confirm the GPU type and count, the latency target and the quality tolerance. With no reply, the team set them itself (ADR-004, 013, 014). No change after the 9 October checkpoint has documented mentor approval; each is recorded in an ADR and listed below.</td><td><code>docs/progress/</code></td></tr>
+</tbody></table>
+<p>The study followed the Assignment 2 plan, with one big change and several smaller ones. <b>The big one:</b> we
+measured five tricks, not seven. Seven tricks means 512 setups instead of 128, and parallelism needs every GPU of
+the node per setup, so two setups could no longer run side by side. At the measured 10.8 GPU-minutes per setup,
+the full plan would have needed about 90 hours of node time instead of 11.5, close to the whole budget. We decided
+this on 2 November, while we still expected a 4-GPU node. When that node was swapped for 2 × H100 NVL on 5
+November, the decision mattered even more. The time saved paid for phase 2, which is what caught the contamination.</p>
+<table class="t compact">
+<thead><tr><th style="width:17%">Item</th><th>Planned (Assignment 2)</th><th>What we did</th><th style="width:9%">ADR</th></tr></thead>
+<tbody>
+<tr><td>Quantized weights</td><td>W8A16 on an Ampere GPU (INT4 also considered)</td><td>FP8 W8A8 on FP8-capable GPUs</td><td>007</td></tr>
+<tr><td>Speculation</td><td>EAGLE-style head or small draft model</td><td>EAGLE-3 with 3 guesses; n-gram only for smoke tests</td><td>008</td></tr>
+<tr><td>Load generation</td><td>vLLM benchmark + async client</td><td>our own closed-loop async client</td><td>005</td></tr>
+<tr><td>Prompts</td><td>synthetic, ShareGPT, long documents</td><td>synthetic only, for exact control</td><td>005</td></tr>
+<tr><td>Telemetry</td><td>DCGM / nvidia-smi, Nsight, Prometheus</td><td>NVML, Prometheus, torch profiler (no admin rights needed)</td><td>010</td></tr>
+<tr><td>Optimizations</td><td>all 7; 512 setups</td><td>5 (chunked prefill and parallelism dropped); 128 setups</td><td>012</td></tr>
+<tr><td>Hardware</td><td>one node, k GPUs (Ampere assumed)</td><td>4 × RTX 6000 Ada node, swapped on 5 Nov for 2 × H100 NVL; one setup per GPU</td><td>013, 014</td></tr>
+<tr><td>Phases</td><td>one factorial run + repeats of winners</td><td>factorial run + investigation of anything odd, with paired accuracy</td><td>016, 018</td></tr>
+</tbody></table>
+
+<!-- =============================== 8 =============================== -->
+<h1><span class="num">8</span>Current state, limitations &amp; risks</h1>
+<div class="ask">What works, what is half-done, and what could go wrong?</div>
+<table class="t compact">
+<thead><tr><th style="width:11%">State</th><th>What</th></tr></thead>
+<tbody>
+<tr><td><span class="chip ok">WORKS</span></td><td>The harness on vLLM 0.31.0 (resumable runs, hashed traces, telemetry, paired accuracy checks, analysis); the five-trick study at 7 workloads (128 clean setups); every analysis in §5; GPU-free unit tests, dry run and number checks.</td></tr>
+<tr><td><span class="chip part">HALF-DONE</span></td><td>16 setups missing; accuracy evidence for the EAGLE-3 combinations (policy B is an upper bound); mechanism readings (§5.4–5.5) fit the telemetry but were not proven by ablation; phase-2 CPU and FLOP/byte telemetry unusable.</td></tr>
+<tr><td><span class="chip nr">MISSING</span></td><td>Tricks 6–7 measured on GPUs; extreme combinations of dials; real user traffic; a second model or GPU type.</td></tr>
+</tbody></table>
+<table class="t compact">
+<thead><tr><th style="width:24%">Known problem or risk</th><th>Impact and workaround</th><th style="width:9%">Next step</th></tr></thead>
+<tbody>
+<tr><td>GPUs on the shared node are not isolated</td><td>A co-tenant slowed 18% of phase-1 runs; the memory check runs only at job start (ADR-015). Workaround: re-run sample setups; compare device memory per run.</td><td>P2</td></tr>
+<tr><td>Run rows say <code>harness_git = nogit</code></td><td>The study ran from a folder that was not a git checkout, so the exact code revision of the 510 runs is not in the data (ADR-011). The final tag is the reference revision.</td><td>P2</td></tr>
+<tr><td>Telemetry gaps</td><td>Per-process CPU and FLOP/byte counters read 0 in phase 2 (fixed afterwards, not re-run); the bottleneck finding rests on profiler + NVML (ADR-019).</td><td>P4</td></tr>
+<tr><td>The quick "binding" rule</td><td>Labels every winner "per-step overhead"; the profiler traces contradict it (§5.7).</td><td>–</td></tr>
+<tr><td>Trick 7 untested on GPUs</td><td>Multi-replica round-robin was exercised only on the simulated engine; EAGLE-3 with pipeline parallelism may be unsupported in vLLM 0.31.</td><td>P4</td></tr>
+<tr><td>Security</td><td>HumanEval's model-written code runs without a sandbox in the measurement job on a shared node; future runs should isolate it. No secrets or personal data.</td><td>P1</td></tr>
+<tr><td>Model provenance</td><td>Ungated mirror; its checksums were not compared with the official weights (ADR-002).</td><td>–</td></tr>
+<tr><td>How far results travel</td><td>One model, one helper head, synthetic text, fixed 256-token answers, constant load, a power-capped GPU, 2–3 repeats, one greedy accuracy run per setting.</td><td>P5</td></tr>
+</tbody></table>
+
+<!-- =============================== 9 =============================== -->
+<h1><span class="num">9</span>Way forward</h1>
+<div class="ask">If you pick this up tomorrow, start here.</div>
+<table class="t compact">
+<thead><tr><th style="width:5%">#</th><th style="width:22%">Task</th><th style="width:25%">Starting point</th><th style="width:18%">Dependency / risk</th><th>Done when</th></tr></thead>
+<tbody>
+<tr><td>P1</td><td>Paired accuracy for FP8 weights + EAGLE-3, FP8 KV + EAGLE-3 and all three, in a sandboxed job</td><td><code>configs/profiles/investigate.yaml</code> (<code>quality.settings</code>); <code>harness/analysis/investigate.py</code></td><td>1 GPU, a few hours; decides whether policy B (up to 3.30×) holds</td><td>each setting has a paired 95% interval on 3 benchmarks; policy B no longer "untested"</td></tr>
+<tr><td>P2</td><td>Re-run the 16 dropped setups on exclusive GPUs, with a per-run check for foreign GPU memory</td><td><code>data/cells_missing_after_cleaning.csv</code>; <code>harness/doctor.py</code></td><td>exclusive allocation on the shared node</td><td>missing list empty; runs with > 1 GB foreign memory flagged; winners recomputed</td></tr>
+<tr><td>P3</td><td>Switch speculation by prompt length; finer 2k–4k sweep</td><td><code>spec_long_context</code> in <code>investigate.yaml</code>; <code>data/spec_vs_context.csv</code></td><td>a router or two server pools</td><td>gated speculation ≥ the better of on/off at 2k, 2.5k, 3k, 3.5k, 4k, 6k, 8k</td></tr>
+<tr><td>P4</td><td>Measure chunked prefill, parallelism and extreme dial combinations, with the fixed telemetry</td><td>bits 6–7 in <code>harness/engine/vllm_flags.py</code>; <code>configs/profiles/full.yaml</code></td><td>a node with ≥ 4 GPUs, ≈ 25 node-hours</td><td>effects of tricks 6–7 at the centre with R² ≥ 0.99; non-zero CPU and FLOP/byte columns</td></tr>
+<tr><td>P5</td><td>Real traffic, e.g. ShareGPT-style conversations</td><td><code>workload.source</code> in <code>configs/experiment.yaml</code></td><td>dataset licence; lengths no longer controlled</td><td>speculation acceptance and prefix hit rate reported; effects within 10% of synthetic, or explained</td></tr>
+</tbody></table>
+
+<!-- =============================== 10 =============================== -->
+<h1><span class="num">10</span>Contributions, AI use &amp; attribution</h1>
+<div class="ask">Who did what, and how did AI help?</div>
+<table class="t compact">
+<thead><tr><th style="width:15%">Member</th><th>Areas</th><th style="width:28%">Commit / PR evidence</th></tr></thead>
+<tbody>
+<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this readable edition.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10) and the commit adding this edition</td></tr>
+<tr><td><b>Mohd Shozab</b></td><td>Initial project planning, with Panshul Jindal. Everything else: the measurement harness (<code>harness/</code>: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis, orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node; contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial drafts of the report, ADRs and presentation.</td><td>Original harness history (commits <code>6ebfa6d</code> to <code>c42acca</code>, cited in the ADRs; not yet imported into this repository); import commit <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4300642b7d3810d7eac72616de71af8cc8a158a4"><code>4300642</code></a>; <code>docs/progress/2026-10-29_harness_handoff.pdf</code></td></tr>
+</tbody></table>
+<p><b>AI-assisted work.</b> The formal report, the ADR write-up and the scripts <code>evaluation/check_report_numbers.py</code>
+and <code>evaluation/make_report_figures.py</code> were drafted with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from
+the team's data, the report pack, the harness source, the course documents and earlier drafts. The final review and
+<b>this readable edition</b> were done with Claude Code (Claude Opus 5.5). <i>How it was checked:</i> every number in the
+formal report is re-derived from the committed CSVs by the check script (289/289 pass); this edition introduces no new
+measurements. Its tables are generated from the same CSVs by <code>docs/report_readable/build.py</code>, which also
+cross-checks every number in this PDF against the formal report. The sketches are drawn by
+<code>docs/report_readable/sketches/make_sketches.py</code>, and their one illustrative bar chart (Figure 9) is marked "not
+to scale". The team reviewed the text against the code and data.</p>
+<p><b>Third-party assets.</b> Software, model weights and datasets are listed with versions and licences in §2; weights
+and datasets are downloaded at run time and not redistributed. The handwriting font is Kalam by the Indian Type
+Foundry (SIL Open Font License, <code>docs/report_readable/fonts/OFL.txt</code>). Figures and data are the team's own
+measurements.</p>
+
+<h1 style="font-size:12.5pt">References</h1>
+<ol class="refs">
+<li>W. Kwon et al. Efficient Memory Management for Large Language Model Serving with PagedAttention. SOSP 2023.</li>
+<li>L. Zheng et al. SGLang: Efficient Execution of Structured Language Model Programs. NeurIPS 2024.</li>
+<li>A. Agrawal et al. Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve. OSDI 2024.</li>
+<li>G.-I. Yu et al. Orca: A Distributed Serving System for Transformer-Based Generative Models. OSDI 2022.</li>
+<li>Y. Leviathan, M. Kalman, Y. Matias. Fast Inference from Transformers via Speculative Decoding. ICML 2023.</li>
+<li>C. Chen et al. Accelerating Large Language Model Decoding with Speculative Sampling. arXiv:2302.01318, 2023.</li>
+<li>Y. Li, F. Wei, C. Zhang, H. Zhang. EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty. ICML 2024.</li>
+<li>Y. Li et al. EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test. arXiv:2503.01840, 2025.</li>
+<li>P. Micikevicius et al. FP8 Formats for Deep Learning. arXiv:2209.05433, 2022.</li>
+<li>Z. Liu et al. KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache. ICML 2024.</li>
+<li>J. Yao et al. CacheBlend: Fast Large Language Model Serving for RAG with Cached Knowledge Fusion. EuroSys 2025.</li>
+<li>Y. Zhong et al. DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving. OSDI 2024.</li>
+<li>R. Pope et al. Efficiently Scaling Transformer Inference. MLSys 2023.</li>
+<li>J. Ainslie et al. GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints. EMNLP 2023.</li>
+<li>Llama Team, AI @ Meta. The Llama 3 Herd of Models. arXiv:2407.21783, 2024.</li>
+<li>K. Cobbe et al. Training Verifiers to Solve Math Word Problems. arXiv:2110.14168, 2021.</li>
+<li>M. Chen et al. Evaluating Large Language Models Trained on Code. arXiv:2107.03374, 2021.</li>
+<li>D. Hendrycks et al. Measuring Massive Multitask Language Understanding. ICLR 2021.</li>
+<li>EleutherAI. lm-evaluation-harness, v0.4.13. https://github.com/EleutherAI/lm-evaluation-harness</li>
+<li>G. E. P. Box, J. S. Hunter, W. G. Hunter. Statistics for Experimenters, 2nd ed. Wiley, 2005.</li>
+<li>Q. McNemar. Note on the Sampling Error of the Difference Between Correlated Proportions or Percentages. Psychometrika 12(2), 1947.</li>
+<li>L. S. Shapley. A Value for n-Person Games. Contributions to the Theory of Games II, Princeton, 1953.</li>
+<li>S. Williams, A. Waterman, D. Patterson. Roofline: An Insightful Visual Performance Model for Multicore Architectures. CACM 52(4), 2009.</li>
+<li>G. M. Amdahl. Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities. AFIPS 1967.</li>
+<li>J. Lin et al. AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration. MLSys 2024.</li>
+</ol>
+
+<!-- =============================== APPENDIX =============================== -->
+<h1 class="appendix">Appendix A · Every setup at every workload</h1>
+<div class="ask">The full table the problem statement asked for.</div>
+<p class="small">Throughput speedup over Default for each setup (bits: FP8 weights, FP8 KV, EAGLE-3, prefix, batching),
+from <code>data/cells_combined_clean.csv</code>. Value equals this speedup when every gate passes; <span class="gatefail">†</span>
+marks setups that failed the original accuracy gate (policy A), so their Value is 1.00. No setup failed a latency
+gate. "–" = not in the half-fraction design, or dropped after the contamination. The last row is the winner per
+workload.</p>
+{{appendix}}
+
+<h1 style="font-size:12.5pt; margin-top:12pt">Appendix B · Where to find the evidence</h1>
+<table class="t compact">
+<thead><tr><th style="width:40%">Evidence</th><th>Location</th></tr></thead>
+<tbody>
+<tr><td>The formal report (same facts, full detail)</td><td><code>docs/Project_Report.pdf</code></td></tr>
+<tr><td>Architecture Decision Records</td><td><code>docs/Architecture_Decision_Records.md</code></td></tr>
+<tr><td>Every run (384 phase 1, 126 phase 2) and the cleaned set</td><td><code>evaluation/report_pack/data/runs_*.csv</code>, <code>cells_combined_clean.csv</code></td></tr>
+<tr><td>Findings F1–F10, claims C1–C17, limitations</td><td><code>evaluation/report_pack/FINDINGS.md</code>, <code>CLAIMS.csv</code>, <code>LIMITATIONS.md</code></td></tr>
+<tr><td>Number checks; unit tests; dry run</td><td><code>evaluation/check_report_numbers.py</code>; <code>tests/</code>; <code>configs/profiles/dry.yaml</code></td></tr>
+<tr><td>Slides and speaker script</td><td><code>docs/presentation/</code></td></tr>
+<tr><td>Progress evidence (16 Oct report, 29 Oct handoff)</td><td><code>docs/progress/</code></td></tr>
+<tr><td>This edition's source</td><td><code>docs/report_readable/</code> (<code>build.py</code>, <code>report.html</code>, <code>sketches/</code>)</td></tr>
+</tbody></table>
+
+</body>
+</html>

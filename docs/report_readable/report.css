@@ -1,0 +1,110 @@
+/* Readable edition of the CS5903 project report (rendered by WeasyPrint >= 54). */
+@font-face { font-family: "Kalam"; src: url("fonts/Kalam-Regular.ttf"); }
+@font-face { font-family: "Kalam"; font-weight: 700; src: url("fonts/Kalam-Bold.ttf"); }
+
+@page {
+  size: A4;
+  margin: 18mm 18mm 17mm 18mm;
+  @top-left { content: "Project 14 · Group 2 · CS5903"; font: 7.5pt Lato, sans-serif; color: #8a949c; }
+  @top-right { content: "Combining LLM serving optimizations · readable edition"; font: 7.5pt Lato, sans-serif; color: #8a949c; }
+  @bottom-center { content: counter(page); font: 8pt Lato, sans-serif; color: #8a949c; }
+}
+@page :first { margin-top: 14mm; @top-left { content: none; } @top-right { content: none; } }
+
+:root {
+  --ink: #22303a; --muted: #66727b; --rule: #dde2e6; --paper: #fbfaf7;
+  --teal: #17756f; --teal-l: #e3f1ef; --amber: #b87514; --amber-l: #fcf1dc;
+  --red: #b8432e; --red-l: #f9e3dd; --plum: #6a4c93; --plum-l: #efe9f6;
+}
+html { font-family: "Bitstream Charter", "Noto Serif", serif; font-size: 10pt; line-height: 1.45; color: var(--ink); }
+body { margin: 0; }
+p { margin: 0 0 5pt 0; hyphens: auto; text-align: left; }
+b, strong { font-weight: 700; }
+a { color: var(--teal); text-decoration: none; }
+code, .path { font-family: "DejaVu Sans Mono", monospace; font-size: 7.8pt; color: #3c4a55; hyphens: manual; }
+ul { margin: 2pt 0 6pt 0; padding-left: 14pt; }
+li { margin-bottom: 2.5pt; }
+
+h1, h2, table, figcaption, .chip, .meta, .label, .kicker-sans { font-family: Lato, "Noto Sans", sans-serif; }
+h1 { font-size: 15pt; margin: 14pt 0 0 0; color: var(--ink); page-break-after: avoid; }
+h1 .num { color: var(--teal); margin-right: 4pt; }
+.ask { font-family: "Kalam", cursive; font-size: 13.5pt; color: var(--teal); margin: -1pt 0 6pt 0; page-break-after: avoid; }
+h2 { font-size: 11.2pt; margin: 11pt 0 3pt 0; page-break-after: avoid; }
+h1.appendix { page-break-before: always; }
+.newpage { page-break-before: always; }
+
+/* cover */
+.cover-kicker { font-family: Lato, sans-serif; font-size: 8.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cover-title { font-family: Lato, sans-serif; font-size: 24pt; line-height: 1.1; font-weight: 700; margin: 4pt 0 2pt 0; }
+.cover-hand { font-family: "Kalam", cursive; font-size: 17pt; color: var(--teal); margin: 0 0 9pt 0; }
+table.meta { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 2pt 0 9pt 0; }
+table.meta th { text-align: left; color: var(--muted); font-weight: 600; width: 24%; padding: 2.4pt 6pt 2.4pt 0; border-bottom: 0.5pt solid var(--rule); vertical-align: top; }
+table.meta td { padding: 2.4pt 0; border-bottom: 0.5pt solid var(--rule); }
+.summary { background: var(--teal-l); border-radius: 6pt; padding: 8pt 11pt; margin: 4pt 0 9pt 0; }
+.summary p { margin: 0 0 3pt 0; }
+.label { display: block; font-family: "Kalam", cursive; font-size: 13pt; color: var(--teal); margin-bottom: 1pt; }
+
+/* the three questions */
+.questions { display: flex; gap: 7pt; margin: 4pt 0 8pt 0; }
+.q { flex: 1; border: 1.2pt solid var(--teal); border-radius: 7pt; padding: 6pt 8pt; background: #fff; }
+.q .qn { font-family: "Kalam", cursive; font-size: 20pt; color: var(--teal); line-height: 1; }
+.q .qt { font-family: "Kalam", cursive; font-weight: 700; font-size: 12pt; line-height: 1.2; margin: 1pt 0 4pt 0; }
+.q .qa { font-size: 8.6pt; line-height: 1.35; color: var(--ink); }
+.q:nth-child(2) { border-color: var(--amber); } .q:nth-child(2) .qn { color: var(--amber); }
+.q:nth-child(3) { border-color: var(--plum); } .q:nth-child(3) .qn { color: var(--plum); }
+
+/* side notes and callouts */
+.words { border: 0.8pt dashed #b9c3ca; border-radius: 6pt; padding: 6pt 9pt; margin: 6pt 0 8pt 0; font-size: 8.6pt; line-height: 1.38; }
+.words .label { font-size: 12.5pt; color: var(--muted); }
+.words dl { margin: 0; columns: 2; column-gap: 14pt; }
+.words dt { font-family: Lato, sans-serif; font-weight: 700; display: inline; }
+.words dd { display: inline; margin: 0; }
+.words dd::after { content: ""; display: block; margin-bottom: 2.5pt; }
+.oneline { border-left: 3pt solid var(--teal); background: #f6f8f7; padding: 5pt 9pt; margin: 4pt 0 7pt 0; font-size: 9.6pt; }
+.oneline .label { font-size: 12pt; }
+.story { background: var(--red-l); border-radius: 6pt; padding: 7pt 10pt; margin: 4pt 0 8pt 0; }
+.story .label { color: var(--red); }
+.rules { background: var(--amber-l); border-radius: 6pt; padding: 7pt 10pt; margin: 6pt 0 8pt 0; }
+.rules .label { color: var(--amber); }
+.rules ol { margin: 0; padding-left: 15pt; }
+.rules li { margin-bottom: 3pt; }
+
+.chip { display: inline-block; font-size: 6.8pt; font-weight: 700; padding: 0.3pt 4pt; border-radius: 3pt; vertical-align: 0.6pt; letter-spacing: .02em; }
+.chip.m { background: #dcebf6; color: #1f4f80; }
+.chip.i { background: #efe6f6; color: #5e2e7a; }
+.chip.q { background: #fbecc8; color: #7a5300; }
+.chip.ok { background: #dcefdc; color: #1f5a2a; }
+.chip.part { background: #fbecc8; color: #7a5300; }
+.chip.nr { background: #e6e8eb; color: #4b545e; }
+
+/* figures */
+figure { margin: 5pt 0 9pt 0; page-break-inside: avoid; }
+figure img { width: 100%; }
+figure.sketch img { width: 100%; }
+figure.half img { width: 78%; display: block; margin: 0 auto; }
+figcaption { font-size: 8pt; color: var(--muted); margin-top: 3pt; line-height: 1.35; }
+figcaption b { color: var(--ink); }
+.cols { display: flex; gap: 11pt; align-items: flex-start; }
+.cols > div { flex: 1; }
+
+/* tables */
+table.t { width: 100%; border-collapse: collapse; font-size: 8pt; line-height: 1.3; margin: 3pt 0 8pt 0; }
+table.t th { text-align: left; font-weight: 700; padding: 3pt 4pt; border-bottom: 1pt solid #9aa6af; vertical-align: bottom; background: #f1f4f6; }
+table.t td { padding: 2.6pt 4pt; border-bottom: 0.4pt solid var(--rule); vertical-align: top; }
+table.t tr { page-break-inside: avoid; }
+table.t td code { font-size: 7pt; }
+table.compact td, table.compact th { padding: 2pt 3.5pt; }
+table.num td { font-variant-numeric: tabular-nums; }
+table.tiny { font-size: 6.6pt; }
+table.tiny td, table.tiny th { padding: 1.2pt 3pt; }
+.muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 8.6pt; }
+span.hi { font-weight: 700; color: #1d5a2a; }
+span.mid { color: #2f6f3a; }
+span.lo { color: #8a939c; }
+span.gatefail { color: #8a939c; font-style: italic; }
+pre.cmd { font-family: "DejaVu Sans Mono", monospace; font-size: 7.6pt; background: #f4f6f7; border-radius: 5pt; padding: 6pt 9pt; margin: 3pt 0 8pt 0; line-height: 1.45; white-space: pre-wrap; }
+.todo { background: #fff2a8; color: #6b4e00; font-family: Lato, sans-serif; font-size: 8pt; padding: 0 2pt; }
+
+ol.refs { font-size: 8pt; padding-left: 15pt; margin: 0; line-height: 1.35; }
+ol.refs li { margin-bottom: 1.5pt; }

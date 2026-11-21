@@ -6,7 +6,7 @@ A measurement harness for vLLM that switches serving optimizations on and off in
 study of five of them on Llama-3.1-8B-Instruct: which optimizations contribute, under which workloads, and where
 they stop helping.
 
-- **Report:** [`docs/Project_Report.pdf`](docs/Project_Report.pdf) (source in `docs/report/`)
+- **Report:** [`docs/Project_Report.pdf`](docs/Project_Report.pdf) (source in `docs/report/`); a plain-language **readable edition** with the same facts: [`docs/Project_Report_readable.pdf`](docs/Project_Report_readable.pdf) (source in `docs/report_readable/`, build with `python docs/report_readable/build.py`)
 - **Architecture Decision Records:** [`docs/Architecture_Decision_Records.md`](docs/Architecture_Decision_Records.md)
 - **Results, findings and figures:** [`evaluation/report_pack/`](evaluation/report_pack/README.md)
 - **Slides:** `docs/presentation/`
