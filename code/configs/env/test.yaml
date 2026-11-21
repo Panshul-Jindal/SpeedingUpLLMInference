@@ -1,0 +1,30 @@
+# Test machine: 1 x NVIDIA RTX PRO 4000 Blackwell SFF (24 GB, sm_120, 70 W cap).
+name: test
+num_gpus: 1
+gpu_ids: [0]
+models:
+  target: unsloth/Llama-3.1-8B-Instruct          # ungated mirror of meta-llama/Llama-3.1-8B-Instruct
+  tokenizer: null                                 # null = same as target
+  awq_int4: hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4
+  eagle3_draft: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B
+  fallback: Qwen/Qwen2.5-1.5B-Instruct            # wiring tests only, never for results
+served_model_name: target
+# Architecture constants used by the binding-constraint estimate (verified by `doctor` against config.json).
+model_info: {params_b: 8.03, num_layers: 32, num_kv_heads: 8, head_dim: 128}
+quantization_on: fp8            # fp8 (online W8A8) | awq_int4
+speculative:
+  method: ngram                 # smoke: ngram (no extra model) | eagle3
+  num_speculative_tokens: 4
+  prompt_lookup_max: 4
+  prompt_lookup_min: 2
+dtype: bfloat16
+max_model_len: 4096
+gpu_memory_utilization: 0.90
+base_port: 8100
+min_free_vram_gb: 21.0
+extra_args: []
+# Vendor datasheet peaks. Leave null until filled in; the roofline-based binding checks then report "unavailable".
+peaks:
+  mem_bandwidth_gbps: null      # GB/s per GPU
+  bf16_tflops: null             # dense TFLOP/s per GPU
+  fp8_tflops: null

@@ -1,0 +1,27 @@
+# Main machine: 4 x NVIDIA RTX 6000 Ada (48 GB each, sm_89, PCIe; check `nvidia-smi topo -m`).
+name: main
+num_gpus: 4
+gpu_ids: [0, 1, 2, 3]
+models:
+  target: unsloth/Llama-3.1-8B-Instruct
+  tokenizer: null
+  awq_int4: hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4
+  eagle3_draft: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B   # alt: RedHatAI/Llama-3.1-8B-Instruct-speculator.eagle3
+  fallback: Qwen/Qwen2.5-1.5B-Instruct
+served_model_name: target
+model_info: {params_b: 8.03, num_layers: 32, num_kv_heads: 8, head_dim: 128}
+quantization_on: fp8
+speculative:
+  method: eagle3
+  num_speculative_tokens: 3
+dtype: bfloat16
+max_model_len: 16384
+gpu_memory_utilization: 0.90
+base_port: 8100
+min_free_vram_gb: 44.0
+extra_args: []
+# Fill in from the RTX 6000 Ada datasheet before running `analyze` (per GPU).
+peaks:
+  mem_bandwidth_gbps: null
+  bf16_tflops: null
+  fp8_tflops: null

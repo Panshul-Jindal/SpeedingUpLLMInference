@@ -1,0 +1,6 @@
+reuse,default,prefix,spec,spec+prefix,source,prefix_gain,prefix_gain_with_spec,spec_gain,spec_prefix_interaction
+0,1771.31,1787.37,2424.25,2474.18,investigation (2 reps),1.00906,1.0206,1.36862,1.01143
+0.1,1786.37,1818.99,2461.88,2544.13,investigation (2 reps),1.01826,1.03341,1.37815,1.01488
+0.25,1774.37,1963.91,2466.29,2766.84,investigation (2 reps),1.10682,1.12187,1.38995,1.0136
+0.5,1789.72,2151.75,2418.75,3261.86,investigation (2 reps),1.20229,1.34857,1.35147,1.12167
+0.9,1774.68,2694.02,2479.64,4580.77,investigation (2 reps),1.51803,1.84735,1.39723,1.21694

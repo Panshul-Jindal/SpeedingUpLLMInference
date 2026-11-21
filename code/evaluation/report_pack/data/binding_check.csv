@@ -1,0 +1,8 @@
+point_id,config,tok_s,running_mean,deep_steps_per_s,deep_step_ms,deep_sm_util_mean,deep_mem_util_mean,deep_sm_clock_mean_mhz,deep_power_mean_w,gpu_busy_frac,top_kernel,power_cap_w,throttle_reason
+center,default,1774.38,28.4083,55.8898,17.8923,100,54.3649,1090.28,397.324,0.983189,nvjet_tst_192x208_64x4_2x1_v_bz_coopB_TNT (2946.12 ms),400,"SW power cap (NVML reason 0x4), every sample"
+center,spec+prefix,3229.64,31.225,31.3926,31.8549,100,39.3763,977.23,398.345,0.980548,nvjet_tst_256x160_64x4_1x2_h_bz_coopA_TNT (2475.68 ms),400,"SW power cap (NVML reason 0x4), every sample"
+concurrency_high,default,2073.66,119.378,16.3359,61.2149,100,41.5863,860.27,398.738,0.993127,nvjet_tst_192x208_64x4_2x1_v_bz_coopB_TNT (4878.518 ms),400,"SW power cap (NVML reason 0x4), every sample"
+concurrency_high,spec+prefix,3518.55,124.733,8.44057,118.475,100,29.9407,933.119,398.135,0.990828,nvjet_tst_256x160_64x4_1x2_h_bz_coopA_TNT (3094.026 ms),400,"SW power cap (NVML reason 0x4), every sample"
+concurrency_high,kvq+spec,2689.27,124.549,6.37268,156.929,100,26.6536,993.387,397.682,,,400,"SW power cap (NVML reason 0x4), every sample"
+concurrency_low,default,303.404,1.97917,152.277,6.56697,99.8233,78.3243,1495.95,397.399,0.959226,nvjet_tst_128x8_64x12_2x1_v_bz_TNT (4893.092 ms),400,"SW power cap (NVML reason 0x4), every sample"
+concurrency_low,spec+prefix,752.396,1.95417,118.091,8.46803,99.9938,71.8711,1501.19,396.234,0.957466,nvjet_tst_128x8_64x12_2x1_v_bz_TNT (4180.789 ms),400,"SW power cap (NVML reason 0x4), every sample"

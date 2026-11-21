@@ -1,0 +1,9 @@
+numeric_bits,names,gsm8k_pts,humaneval_pts,mmlu_pts,agreement_with_default,samples
+000,default,71.2,63.4146,61.5242,1,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+001,spec,70.8,63.4146,61.3397,0.92,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+010,kvq,68.4,61.5854,59.4593,0.43,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+011,kvq+spec,70,61.5854,59.3782,0.43,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+100,quant,71,60.3659,61.1714,0.41,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+101,quant+spec,71,59.1463,61.2511,0.37,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+110,quant+kvq,66.2,61.5854,60.8354,0.37,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"
+111,quant+kvq+spec,64.8,61.5854,60.8239,0.34,"trimmed: GSM8K 500, HumanEval 164, MMLU 4 subjects"

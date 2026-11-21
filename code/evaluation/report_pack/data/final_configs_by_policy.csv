@@ -1,0 +1,22 @@
+point_id,policy,best_config,best_names,speedup,tok_s,default_tok_s,source,accuracy_status_B
+center,"A: original trimmed evals, 1-pt gate",0011000,spec+prefix,1.82113,3231.23,1774.3,fast,passes
+center,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011000,quant+spec+prefix,2.39696,4252.93,1774.3,fast,untested (assumed pass)
+center,C: latency gates only,1111100,quant+kvq+spec+prefix+batch,2.47693,4394.82,1774.3,fast,fails (contains a failing pair; inferred)
+context_low,"A: original trimmed evals, 1-pt gate",0011000,spec+prefix,1.93143,7777.15,4026.62,fast,passes
+context_low,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011100,quant+spec+prefix+batch,2.53699,10215.5,4026.62,fast,untested (assumed pass)
+context_low,C: latency gates only,1011100,quant+spec+prefix+batch,2.53699,10215.5,4026.62,fast,untested (assumed pass)
+context_high,"A: original trimmed evals, 1-pt gate",0001100,prefix+batch,1.50004,742.553,495.022,fast,passes
+context_high,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011100,quant+spec+prefix+batch,1.82387,902.857,495.022,fast,untested (assumed pass)
+context_high,C: latency gates only,1101100,quant+kvq+prefix+batch,2.04667,1013.15,495.022,fast,fails (significant drop)
+concurrency_low,"A: original trimmed evals, 1-pt gate",0011000,spec+prefix,2.485,753.466,303.206,fast,passes
+concurrency_low,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011100,quant+spec+prefix+batch,3.29932,1000.37,303.206,fast,untested (assumed pass)
+concurrency_low,C: latency gates only,1011100,quant+spec+prefix+batch,3.29932,1000.37,303.206,fast,untested (assumed pass)
+concurrency_high,"A: original trimmed evals, 1-pt gate",0011000,spec+prefix,1.66618,3602.31,2162.02,fast,passes
+concurrency_high,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011100,quant+spec+prefix+batch,2.12498,4594.25,2162.02,fast,untested (assumed pass)
+concurrency_high,C: latency gates only,1011100,quant+spec+prefix+batch,2.12498,4594.25,2162.02,fast,untested (assumed pass)
+reuse_low,"A: original trimmed evals, 1-pt gate",0011000,spec+prefix,1.39327,2474.18,1775.8,re-run,passes
+reuse_low,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",0011000,spec+prefix,1.39327,2474.18,1775.8,re-run,passes
+reuse_low,C: latency gates only,0011000,spec+prefix,1.39327,2474.18,1775.8,re-run,passes
+reuse_high,"A: original trimmed evals, 1-pt gate",0011100,spec+prefix+batch,2.62409,4656.92,1774.68,investigation,passes
+reuse_high,"B: paired test (full GSM8K, 8 MMLU), 1-pt gate",1011100,quant+spec+prefix+batch,3.29908,5854.83,1774.68,fast,untested (assumed pass)
+reuse_high,C: latency gates only,1011100,quant+spec+prefix+batch,3.29908,5854.83,1774.68,fast,untested (assumed pass)

@@ -1,0 +1,21 @@
+# GPU smoke test on the test machine: Default, each single optimization, all-on; centre + one off-centre point.
+name: smoke
+engine: vllm
+design: smoke
+points: [center, context_high]
+overrides:
+  regimes:
+    context: {low: 256, mid: 1024, high: 2048}
+    concurrency: {low: 2, mid: 8, high: 16}
+    reuse: {low: 0.0, mid: 0.5, high: 0.9}
+  workload: {output_tokens: 64, trace_requests: 1500}
+  run: {reps: 1, warmup_s: 10.0, window_s: 20.0, startup_timeout_s: 900.0}
+  placeholders: {max_num_seqs: 32, max_num_batched_tokens: 1024}
+  sweeps:
+    max_num_seqs: [16, 64]
+    max_num_batched_tokens: [512, 2048]
+  quality:
+    limit: 20
+    mmlu_subtasks: [mmlu_high_school_mathematics, mmlu_college_computer_science]
+  # With --limit 20 a 1-point gate is pure noise; the smoke run only proves the code path.
+  gates: {max_accuracy_drop: 15.0}

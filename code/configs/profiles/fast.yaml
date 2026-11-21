@@ -1,0 +1,18 @@
+# Reduced, fast plan for the main machine (agreed deviation from the spec's full plan; see RUNBOOK.md).
+# - 5 optimizations: quant, kvq, spec (numeric) + prefix, batch (scheduling). chunk and par stay off.
+#   n = 5 -> 32 configurations at the centre + 6 x 16 even-parity half-fractions = 128 cells.
+# - One GPU per cell (Default = TP 1), so the 4 GPUs run 4 cells at once.
+# - Trimmed quality: GSM8K 500 samples, full HumanEval, 4 MMLU subjects; 8 numeric settings, 4 at once.
+name: fast
+engine: vllm
+design: full
+points: all
+optimizations: [quant, kvq, spec, prefix, batch]
+tuned_file: tuned_fast.yaml      # sweep values for a 1-GPU cell differ from the 4-GPU ones
+overrides:
+  run:
+    gpus_per_cell: 1
+  quality:
+    mmlu_subtasks: [mmlu_high_school_mathematics, mmlu_college_computer_science, mmlu_professional_medicine,
+                    mmlu_philosophy]
+    task_limits: {gsm8k: 500}

@@ -1,0 +1,32 @@
+# Slurm node with 2 x NVIDIA H100 80GB (sm_90). Jobs are capped at 8 h, so the study runs as a chain of
+# resumable jobs: scripts/slurm/submit.sh (see RUNBOOK.md section 2c).
+name: h100
+num_gpus: 2
+gpu_ids: auto                 # the GPUs Slurm allocated (CUDA_VISIBLE_DEVICES); 0..n-1 when it is unset
+models:
+  target: unsloth/Llama-3.1-8B-Instruct
+  tokenizer: null
+  awq_int4: hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4
+  eagle3_draft: yuhuili/EAGLE3-LLaMA3.1-Instruct-8B   # alt: RedHatAI/Llama-3.1-8B-Instruct-speculator.eagle3
+  fallback: Qwen/Qwen2.5-1.5B-Instruct
+served_model_name: target
+model_info: {params_b: 8.03, num_layers: 32, num_kv_heads: 8, head_dim: 128}
+quantization_on: fp8
+speculative:
+  method: eagle3
+  num_speculative_tokens: 3
+dtype: bfloat16
+max_model_len: 16384
+gpu_memory_utilization: 0.90
+base_port: 18100              # replaced per job by HARNESS_BASE_PORT (scripts/slurm/harness.sbatch)
+min_free_vram_gb: 70.0
+extra_args: []
+# Fill in from the datasheet of the variant `doctor` reports (per GPU, dense):
+#   H100 SXM (name "H100 80GB HBM3"): 3350 GB/s, BF16 989 TFLOP/s, FP8 1979 TFLOP/s
+#   H100 PCIe:                         2000 GB/s, BF16 756 TFLOP/s, FP8 1513 TFLOP/s
+#   H100 NVL (94 GB):                  3900 GB/s, BF16 835 TFLOP/s, FP8 1670 TFLOP/s
+# ccs-srv004 has 2 x H100 NVL (doctor, 2026-11-07).
+peaks:
+  mem_bandwidth_gbps: 3900
+  bf16_tflops: 835.5
+  fp8_tflops: 1670.5

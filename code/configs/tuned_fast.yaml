@@ -1,0 +1,16 @@
+# Written by `python -m harness sweep`. Keyed by env -> point -> parameter.
+h100:
+  center:
+    max_num_seqs: 32
+  concurrency_high:
+    max_num_seqs: 128
+  concurrency_low:
+    max_num_seqs: 16
+  context_high:
+    max_num_seqs: 128
+  context_low:
+    max_num_seqs: 64
+  reuse_high:
+    max_num_seqs: 128
+  reuse_low:
+    max_num_seqs: 64

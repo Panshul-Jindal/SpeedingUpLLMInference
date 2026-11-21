@@ -1,0 +1,19 @@
+# Dry run: FakeEngine, full plan, no GPU. Without --env it runs both envs (n=6 on test, n=7 on main).
+name: dry
+engine: fake
+design: full
+points: all
+envs: [test, main]
+overrides:
+  run: {reps: 3, warmup_s: 0, window_s: 0}
+  workload: {trace_requests: 64, output_tokens: 16}
+  regimes:
+    context: {low: 32, mid: 64, high: 128}
+fake:
+  seed: 7
+  noise_sd: 0.02
+  # Bit sets (1-based optimization numbers) that "cannot start" in the fake engine.
+  infeasible_combos: [[2, 3, 7], [1, 2, 3, 6]]
+  # One injected crash during measurement; the orchestrator must record it and carry on.
+  crash: {env: main, point: center, config: "0001100", rep: 2}
+  quality_drop: {"111": 2.5}     # accuracy drop (points) for numeric settings -> quality gate failure

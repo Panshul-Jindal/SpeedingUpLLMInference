@@ -1,0 +1,6 @@
+# Full experiment on the main machine: 2^n at the centre, 2^(n-1) even-parity half-fractions elsewhere.
+name: full
+engine: vllm
+design: full
+points: all
+overrides: {}

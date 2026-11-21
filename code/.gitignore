@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+results/
+traces/
+logs/
+*.egg-info/
+.cuda-toolkit/
+/report_pack/
+.env
+results/fast_clean/

@@ -1,0 +1,12 @@
+env,point_id,optimization,name,multiplier,gain_pct,reason
+h100,center,5,batch,1.000487959969355,0.048795996935502295,"batch limit not binding: mean running 27.61 vs default limit 256.00, waiting 0.02"
+h100,context_low,2,kvq,0.9987627747905801,-0.12372252094199343,"KV capacity not binding: default KV usage 3%, preemptions 0.00"
+h100,context_low,5,batch,1.0013364730767726,0.13364730767726485,"batch limit not binding: mean running 31.06 vs default limit 256.00, waiting 0.00"
+h100,context_high,3,spec,0.9997672629500609,-0.023273704993909128,draft acceptance 11% at concurrency 32; extra verify work competes with batching
+h100,context_high,5,batch,1.0185713968290255,1.8571396829025533,"batch limit not binding: mean running 30.62 vs default limit 256.00, waiting 0.00"
+h100,concurrency_low,2,kvq,0.9982759680242681,-0.1724031975731899,"KV capacity not binding: default KV usage 1%, preemptions 0.00"
+h100,concurrency_low,5,batch,1.003107950630123,0.31079506301230353,"batch limit not binding: mean running 1.95 vs default limit 256.00, waiting 0.00"
+h100,concurrency_high,5,batch,1.0114744330466279,1.1474433046627874,"batch limit not binding: mean running 119.47 vs default limit 256.00, waiting 0.00"
+h100,reuse_low,4,prefix,0.9970019519220709,-0.29980480779291385,prefix-cache hit rate 0% at 0% reuse
+h100,reuse_low,5,batch,1.0032783943654318,0.3278394365431758,"batch limit not binding: mean running 27.70 vs default limit 256.00, waiting 0.04"
+h100,reuse_high,5,batch,1.002779645672403,0.2779645672402964,"batch limit not binding: mean running 27.55 vs default limit 256.00, waiting 0.08"

@@ -1,0 +1,86 @@
+# Focused re-runs of the anomalies found in the fast-plan results (2 x H100 NVL, 2026-11-07), with deep
+# telemetry on every measured run (time series of NVML, vLLM /metrics and process CPU; see
+# harness/deep_telemetry.py) and vLLM torch-profiler passes for selected cells.
+# Cells named by several investigations run once. Results: results/investigate/; report:
+# `python -m harness analyze --profile investigate`. Estimate: `python -m harness plan --profile investigate --env h100`.
+name: investigate
+engine: vllm
+design: full
+points: all
+optimizations: [quant, kvq, spec, prefix, batch]
+tuned_file: tuned_fast.yaml          # same tuned batch sizes as the fast plan (1 GPU per cell)
+overrides:
+  # vLLM fills vllm:estimated_{flops,read_bytes}_per_gpu_total only with this flag (they stay 0.0 otherwise).
+  engine_extra_flags: ["--enable-mfu-metrics"]
+  run:
+    gpus_per_cell: 1
+    reps: 2                          # noise was 0.1-1.4% per cell in the fast plan
+  quality:
+    # Paired accuracy test: full GSM8K and all 8 MMLU subjects, per-question outputs logged.
+    settings: ["000", "100", "010", "110", "001"]
+    log_samples: true
+    task_limits: {}
+profiler:
+  warmup_s: 30
+  window_s: 15
+  active_iterations: 64
+  flush_timeout_s: 300
+
+investigations:
+  - id: spec_prefix_no_reuse
+    why: >-
+      At reuse_low (0% shared prefixes) spec+prefix runs at 1459 tok/s, slower than Default (1776), while
+      spec+batch reaches 2452 with the same EAGLE-3 acceptance (0.80): TPOT p50 19.7 vs 11.6 ms, SM clock
+      higher (GPU idler) -> suspected CPU-side cost of prefix caching with speculative decoding when nothing
+      hits. Sweep reuse to find where it flips; profile the two configurations.
+    base: center
+    vary: {reuse: [0.0, 0.1, 0.25, 0.5]}
+    configs: [default, spec, prefix, spec+prefix, spec+batch, spec+prefix+batch]
+    profile: [spec+prefix, spec+batch]
+
+  - id: spec_long_context
+    why: >-
+      EAGLE-3 acceptance falls from ~0.78 to 0.11 at 8192-token prompts (tokens/step 3.4 -> 1.3), so spec has
+      no effect at context_high. Find the context length where the draft head breaks down, with per-position
+      acceptance; profile spec to see the draft cost at long context.
+    base: center
+    vary: {context: [2048, 4096, 6144, 8192]}
+    configs: [default, spec]
+    profile: [spec]
+
+  - id: high_load_dealias
+    why: >-
+      Tuned batching shows a 1.24x / 1.33x main effect at concurrency_high / reuse_high although the tuned
+      limit (128) never binds there, and prefix has model-only interactions with quant/kvq (0.57-0.62) and
+      spec (1.6-2.1). The half-fraction never ran these 2x2 squares; run them so the effects are measured,
+      not modelled.
+    points: [concurrency_high, reuse_high]
+    configs: [default, batch, prefix, prefix+batch, spec, spec+prefix, spec+prefix+batch,
+              quant, quant+prefix, kvq, kvq+prefix]
+
+  - id: kvq_spec_outlier
+    why: >-
+      concurrency_high kvq+spec: rep 1 2716 tok/s, reps 2-3 ~1770 (TPOT p99 80 vs 127 ms, so the latency
+      gate flips). Repeat 5 times with time series, alongside the other GPU slot as in the fast plan...
+    points: [concurrency_high]
+    configs: [kvq+spec]
+    reps: 5
+
+  - id: kvq_spec_outlier_alone
+    why: >-
+      ...and 5 times with the other GPU idle: if only the shared runs vary, CPU contention between the two
+      slots (16 CPUs for two engines + two load drivers) is the cause, which would affect the whole study.
+    points: [concurrency_high]
+    configs: [kvq+spec]
+    reps: 5
+    exclusive: true
+
+  - id: binding_check
+    why: >-
+      Every final configuration was labelled per_step_overhead (bandwidth <= 50% and compute <= 41% of peak
+      by the first-order estimate). Check with vLLM's own byte/FLOP counters, engine steps/s, EngineCore CPU
+      and a profiler trace (GPU-busy fraction), without a neighbour on the other GPU.
+    points: [center, concurrency_low, concurrency_high]
+    configs: [default, spec+prefix]
+    profile: all
+    exclusive: true

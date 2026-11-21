@@ -1,0 +1,24 @@
+--extra-index-url https://wheels.vllm.ai/0.31.0/cu129
+--extra-index-url https://download.pytorch.org/whl/cu129
+--extra-index-url https://flashinfer.ai/whl/cu129
+--extra-index-url https://flashinfer.ai/whl
+vllm==0.31.0+cu129
+# torchcodec from PyPI is a CUDA-13 build (needs libnvrtc.so.13); use the cu129 build
+torchcodec==0.16.0+cu129
+# Precompiled FlashInfer kernels: vLLM's FlashInfer sampler otherwise JIT-compiles and needs a full nvcc
+flashinfer-jit-cache==0.7.0.post1+cu129
+# vLLM only enables FlashInfer kernels (needed e.g. for FP8 KV on sm_120) if nvcc or flashinfer-cubin exists
+flashinfer-cubin==0.7.0.post1
+torch==2.13.0+cu129
+lm-eval[api]
+nvidia-ml-py
+aiohttp
+pydantic>=2
+pyyaml
+numpy
+pandas
+pyarrow
+statsmodels
+prometheus-client
+pytest
+pytest-asyncio

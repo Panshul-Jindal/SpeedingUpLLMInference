@@ -1,0 +1,18 @@
+id,claim,type,confidence,evidence,figure,caveat
+C1,71/384 factorial runs were slowed by a co-tenant process on GPU 0 (median 0.60x of true throughput).,measured,high,contamination_by_phase.csv; contamination_matched_runs.csv,01_contamination_timeline.png,The other process is inferred from device memory and clocks; its owner was not observed during the run.
+C2,"Repetitions of contaminated cells agreed to within 0.2-3.8% (CV), so within-session noise does not reveal this kind of interference.",measured,high,runs_fast_plan_all.csv (contaminated cells' reps),,
+C3,"With the original accuracy policy, spec + prefix is the best configuration at 6 of 7 workloads.",measured,high,final_configs_by_policy.csv (policy A),02_best_speedup_corrected.png,
+C4,"Corrected best speedups (policy A): centre 1.82x, short prompts 1.93x, long prompts 1.50x, low concurrency 2.48x, high concurrency 1.67x, 0% reuse 1.39x, 90% reuse 2.62x",measured,high,final_configs_by_policy.csv,02_best_speedup_corrected.png,16 contaminated cells could not be re-run; a missing cell could be a better configuration.
+C5,"No combination with measured singles fell >5% below the product of its single speedups; 18 of 50 exceeded it by >5%, all involving spec.",measured,high,composition_per_config.csv,05_composition_observed_vs_predicted.png,"Only points where all five singles were measured (centre, high concurrency, 0%/90% reuse)."
+C6,Multiplicative composition predicts centre combinations with median error 4.8%; additive composition 9.1%.,measured,high,composition_per_config.csv,,
+C7,spec x prefix interaction rises from 1.01 (0% reuse) to 1.12 (50%) and 1.22 (90%).,measured,high,prefix_vs_reuse.csv,04_prefix_gain_vs_reuse.png,
+C8,The spec x prefix synergy is explained by Amdahl's law over mixed prefill/decode engine steps.,interpretation,medium,"investigation_cells.csv (deep_decode_s, deep_tokens_per_step)",,Consistent with the measured decode-time reductions; not proven by a controlled ablation.
+C9,FP8 weights give 1.20x alone and 1.34x on top of EAGLE-3 at the centre.,measured,high,cells_combined_clean.csv; interactions_measured_2x2.csv,,
+C10,"quant x spec synergy arises because spec makes steps compute-heavier, where FP8 math helps most.",interpretation,medium,investigation_cells.csv (deep_tokens_per_step),,Supported by tokens per step; kernel-level confirmation would need per-kernel profiles of both configs.
+C11,EAGLE-3 speedup falls from 1.35x (2048-token prompts) to 1.00x (6144).,measured,high,spec_vs_context.csv,03_eagle3_long_context.png,Synthetic random-word prompts; real long documents may behave differently.
+C12,The EAGLE-3 head was trained on shorter contexts than 4k tokens.,interpretation,low,spec_vs_context.csv,,Inferred from the acceptance pattern; the head's training length was not checked.
+C13,FP8 weights + FP8 KV lose 2.6 points on GSM8K (p = 0.03); each alone is not significant.,measured,high,quality_paired_vs_default.csv,07_accuracy_paired.png,Single run per setting (greedy decoding); quant+spec and kvq+spec were not paired-tested.
+C14,Tuned batching has no effect at any workload (limit never binds).,measured,high,"clean_main_effects.csv; cells_combined_clean.csv (max_num_seqs, running_mean)",06_main_effects_heatmap.png,
+C15,spec's main effect ranges from 1.00x to 2.31x by workload.,measured,high,clean_main_effects.csv,06_main_effects_heatmap.png,
+C16,GPU busy 96%-99% in all profiler traces; power-cap throttle in all runs.,measured,high,profiler_passes.csv; binding_check.csv,08_power_cap_clocks.png,Profiles cover 64 engine steps per configuration.
+C17,Running cells concurrently on the two GPUs does not change their throughput.,measured,high,outlier_rerun.csv,09_outlier_rerun.png,Tested on one cell (10 reps).

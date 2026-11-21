@@ -1,0 +1,13 @@
+setting,names,task,n,base_acc,acc,diff_pts,ci95_lo,ci95_hi,lost,gained,mcnemar_p,verdict
+100,quant,gsm8k,1319,69.5982,68.9917,-0.60652,-2.63362,1.42058,97,89,0.607886,not significant; CI too wide to confirm the gate
+010,kvq,gsm8k,1319,69.5982,69.3707,-0.227445,-2.29257,1.83768,98,95,0.885578,not significant; CI too wide to confirm the gate
+110,quant+kvq,gsm8k,1319,69.5982,67.0205,-2.57771,-4.89558,-0.259838,139,105,0.0344196,significant drop beyond gate
+001,spec,gsm8k,1319,69.5982,69.2191,-0.379075,-1.39799,0.639838,26,21,0.560065,not significant; CI too wide to confirm the gate
+100,quant,humaneval,164,63.4146,61.5854,-1.82927,-5.79525,2.13671,7,4,0.548828,not significant; CI too wide to confirm the gate
+010,kvq,humaneval,164,63.4146,62.1951,-1.21951,-5.70104,3.26201,8,6,0.790527,not significant; CI too wide to confirm the gate
+110,quant+kvq,humaneval,164,63.4146,62.1951,-1.21951,-6.01099,3.57196,9,7,0.803619,not significant; CI too wide to confirm the gate
+001,spec,humaneval,164,63.4146,63.4146,0,0,0,0,0,1,within gate (CI excludes a larger drop)
+100,quant,mmlu,1687,65.738,65.9158,0.17783,-0.893604,1.24926,41,44,0.828423,within gate (CI excludes a larger drop)
+010,kvq,mmlu,1687,65.738,65.2638,-0.474215,-1.53912,0.590691,46,38,0.445205,not significant; CI too wide to confirm the gate
+110,quant+kvq,mmlu,1687,65.738,65.3231,-0.414938,-1.57111,0.741237,53,46,0.546713,not significant; CI too wide to confirm the gate
+001,spec,mmlu,1687,65.738,65.6194,-0.118554,-0.447216,0.210109,5,3,0.726562,within gate (CI excludes a larger drop)

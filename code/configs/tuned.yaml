@@ -1,0 +1,5 @@
+# Written by `python -m harness sweep`. Keyed by env -> point -> parameter.
+test:
+  center:
+    max_num_batched_tokens: 512
+    max_num_seqs: 64
