@@ -1,4 +1,4 @@
-# Architecture Decision Records — Project 14, Group 2
+# Architecture Decision Records — Project 24, Group 2
 
 **Project:** Combining infrastructure-level optimizations for LLM serving (CS5903, IIT Hyderabad)
 **Members:** Panshul Jindal, Mohd Shozab

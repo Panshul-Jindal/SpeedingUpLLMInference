@@ -1,6 +1,6 @@
 # Combining Infrastructure-Level Optimizations for LLM Serving
 
-CS5903 Distributed AI Training, IIT Hyderabad · Project 14, Group 2 · Panshul Jindal, Mohd Shozab
+CS5903 Distributed AI Training, IIT Hyderabad · Project 24, Group 2 · Panshul Jindal, Mohd Shozab
 
 A measurement harness for vLLM that switches serving optimizations on and off independently, and a factorial
 study of five of them on Llama-3.1-8B-Instruct: which optimizations contribute, under which workloads, and where

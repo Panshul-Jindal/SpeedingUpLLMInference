@@ -1,6 +1,6 @@
 # Presentation Script: Combining LLM Serving Optimizations (Final Report)
 
-Project 14, Group 2 · Panshul Jindal, Mohd Shozab · 14 slides, about 17 minutes plus questions.
+Project 24, Group 2 · Panshul Jindal, Mohd Shozab · 14 slides, about 17 minutes plus questions.
 The same text is in each slide's speaker notes.
 
 ## Slide 1: Combining LLM Serving Optimizations (title)
