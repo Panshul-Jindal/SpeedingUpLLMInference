@@ -97,7 +97,7 @@ EAGLE-3); SGLang (similar features; Assignment 2 kept it only as an optional pre
 
 **Decision & rationale.** vLLM 0.31.0+cu129 with PyTorch 2.13.0+cu129, whose wheels cover sm_89, sm_90 and sm_120.
 All flag mapping is in `harness/engine/vllm_flags.py`; `harness/doctor.py` (`check_flags`) runs `vllm serve
---help=all` and fails if a mapped flag is missing. The 0.31.0 help text is saved in `docs/vllm_serve_help_0.31.0.txt`.
+--help=all` and fails if a mapped flag is missing. The 0.31.0 help text was saved during development; it is not included in this repository and can be regenerated with `vllm serve --help=all` on vLLM 0.31.0.
 
 **Consequences & trade-offs.** Results hold for vLLM 0.31 only; the SGLang cross-check was not done. CUDA 12.9 wheels
 need a matching driver; FlashInfer's JIT kernels need `nvcc`, so `scripts/setup_env.sh` installs a user-level CUDA
