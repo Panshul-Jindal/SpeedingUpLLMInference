@@ -127,6 +127,7 @@ def main() -> int:
     c.eq("S5.2", "their within-cell CV min %", 0.2, round(min(cvs), 1))
     c.eq("S5.2", "their within-cell CV median %", 2.1, round(float(np.median(cvs)), 1))
     c.eq("S5.2", "their within-cell CV max %", 3.8, round(max(cvs), 1))
+    c.eq("S5.2", "median rep CV of the cleaned cells %", 0.2, round(100 * float(cells.tok_s_cv.median()), 1))
     m = rd("contamination_matched_runs.csv")
     c.eq("S5.2", "contaminated/clean ratio min", 0.56, round(m[m.contaminated].ratio_fast_to_rerun.min(), 2))
     c.eq("S5.2", "contaminated/clean ratio max", 0.69, round(m[m.contaminated].ratio_fast_to_rerun.max(), 2))

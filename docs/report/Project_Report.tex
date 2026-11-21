@@ -187,7 +187,7 @@ profiler traces and a paired accuracy re-test.
 Optimizations never cancel: their speedups multiply, and with speculative decoding they exceed the product by up to
 31\%. EAGLE-3 stops helping beyond $\sim$4k-token prompts, and FP8 weights plus FP8 KV together cost 2.6 GSM8K
 points. A co-tenant process that silently slowed 18\% of the first-phase runs was detected and removed.
-\textbf{Completion.} The five-optimization study and its analysis are complete; 288 automated checks confirm every
+\textbf{Completion.} The five-optimization study and its analysis are complete; 289 automated checks confirm every
 number in this report from the exported data. Chunked prefill and parallelism (2 of the 7 planned optimizations) are
 implemented but were not measured.
 \end{summarybox}
@@ -465,8 +465,9 @@ best speedup per workload as first reported versus after removing the contaminat
 \meas Comparing phase-2 re-runs with phase 1 showed that from 11:24 UTC on 7 Nov every run on GPU\,0 ran at
 0.56--0.69\x\ its true throughput, while GPU\,1 stayed at 1.006\x. NVML recorded +4.3\,GB of device memory, a higher
 SM clock and lower power on GPU\,0, the signature of another user's process sharing the GPU. 71 of 384 runs (18\%) in
-24 cells were affected. Within a cell the slowdown was invisible: the 23 fully contaminated cells had a repetition CV
-of 0.2--3.8\% (median 2.1\%), so the pack's claim C2 (``$<$1\%'') is corrected here. \textbf{Correction} (ADR-017):
+24 cells were affected. Within a cell the slowdown was easy to miss: the 23 fully contaminated cells had a repetition
+CV of 0.2--3.8\% (median 2.1\%), small next to a 40\% slowdown but ten times the 0.2\% median of the cleaned cells, a
+signal a per-cell CV alarm could have caught; the pack's claim C2 (``$<$1\%'') is corrected here. \textbf{Correction} (ADR-017):
 8 cells replaced by clean re-runs, 16 excluded (\fp{data/cells_missing_after_cleaning.csv}), 16 phase-2-only cells
 added. The 40 uncontaminated phase-1 runs that were re-run match within 2.2\%. Best speedups fell from 4.50\x\ to
 2.62\x\ (90\% reuse) and from 2.64\x\ to 1.67\x\ (high concurrency). Checks \texttt{S5.2}.
@@ -569,8 +570,9 @@ speculation does not obviously explain.
 \meas FP8 weights alone and FP8 KV alone are not distinguishable from BF16 on 1,319 GSM8K questions; together they
 lose 2.58 points (95\% CI $-4.9$ to $-0.3$, $p = 0.03$), the only significant drop [C13]. EAGLE-3 changed the outcome
 of 47 of 1,319 GSM8K questions (n.s.) and no HumanEval result. The trimmed phase-1 evaluation had excluded each FP8
-change on its own (e.g.\ $-3.0$ points for FP8 weights on 164 HumanEval problems); the paired test shows that was
-noise, and that the real risk is the combination (ADR-018). \interp each FP8 change adds a small rounding error that
+change on its own (e.g.\ $-3.0$ points for FP8 weights on 164 HumanEval problems); the paired test can neither
+confirm nor exclude a 1-point drop for either change alone (CIs too wide), so those exclusions are not supported by
+the data, while the combination shows the only significant drop (ADR-018). \interp each FP8 change adds a small rounding error that
 compounds over multi-step arithmetic. Caveat: one greedy run per setting; quant+spec, kvq+spec and all three were not
 paired-tested.
 
@@ -632,44 +634,66 @@ environment).
 % =====================================================================
 \section{Milestone verification matrix}\label{sec:milestones}
 % =====================================================================
-Milestones are team-defined from Assignment 2 (\S D) and the progress report. ``Tests'' are the GPU-free commands
-anyone can run from a clean checkout: \texttt{pytest} (\fp{tests/}, 69 tests: 68 passed, 1 skipped, 21 Nov), the
-dry pipeline, and \fp{evaluation/check_report_numbers.py} (288/288 checks passed, 21 Nov), whose check ids are given.
+Milestones are team-defined from Assignment 2 (\S D) and the progress report; no milestone or test IDs were issued
+by the course for Project 14. ``Tests'' are the GPU-free commands anyone can run from a clean checkout: \texttt{pytest}
+(\fp{tests/}, 69 tests: 68 passed, 1 skipped, 21 Nov), the dry pipeline, and \fp{evaluation/check_report_numbers.py}
+(289/289 checks passed, 21 Nov), whose check ids are the test IDs below. \textbf{Changes:} no change was mentor-approved,
+because no mentor feedback was received (\S\ref{sec:feedback}); the team-decided changes behind M4 and M6 are recorded in
+ADR-012 and ADR-018.
 
 {\small
-\setlength{\tabcolsep}{3.5pt}
-\begin{longtable}{@{}P{2.4cm}P{4.3cm}P{5.1cm}P{1.3cm}P{2.4cm}@{}}
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}P{2.0cm}P{2.0cm}P{3.3cm}P{4.5cm}P{1.2cm}P{2.3cm}@{}}
 \toprule
-\rowcolor{tblhead}\hc{Milestone} & \hc{Expected} & \hc{Observed} & \hc{Status} & \hc{Evidence} \\
+\rowcolor{tblhead}\hc{Milestone} & \hc{Test ID} & \hc{Expected} & \hc{Observed} & \hc{Status} & \hc{Evidence} \\
 \midrule\endhead
-M1 Scope \& design & Problem, 7 optimizations, regimes, Value, run plan & Assignment 1, Assignment 2, progress report
-& \pass & ADR-000 \\
-\rowcolor{rowgray} M2 Harness built & Unit tests, simulated end-to-end run, GPU smoke test & 68/69 tests pass (1 needs
-the tokenizer); dry pipeline: 1,536 runs of the 7-optimization plan, 20 infeasible configs and 1 injected crash
-recorded, report written; smoke test 7/7 steps on 29 Oct & \pass & \fp{tests/},
-\fp{configs/profiles/dry.yaml}, \fp{SMOKE_TEST_REPORT.md} \\
-M3 Baseline \& workload & Default at 7 points, CV $\le$ 2\%; Default truly all off; same trace per point & max
-Default CV 1.53\%; 45/45 Default runs verified off by the engine; 1 trace per point, 0 request errors in 510 runs &
-\pass & \texttt{S5.1-cv}, \texttt{S2-base}, \texttt{S4-trace} \\
-\rowcolor{rowgray} M4 Factorial measurement & Planned design measured, $\ge$\,2 clean reps per cell & 384/384 runs
-ok; 112 clean phase-1 cells + 16 added; 16 lost to contamination; opts 6--7 not run & \partl & \texttt{S4-runs},
-\texttt{S5.2}; ADR-012 \\
-M5 Value \& table & Value only when gates pass; Configuration \x\ Regime table & 0 latency, 86 accuracy failures;
-full table in App.\ A (generated from data) & \pass & \texttt{S5.1-*}; App.\ A \\
-\rowcolor{rowgray} M6 Quality & Accuracy vs.\ Default for every numeric setting & 8 settings trimmed; 5 settings paired
-on full tasks; spec combinations not paired & \partl & \texttt{S5.6-*}; ADR-018 \\
-M7 Attribution \& final config & Effects, interactions, Shapley, winner and binding constraint per point &
-$R^2 \ge 0.9976$; Shapley exact at 3 points; 11/11 no-benefit cases explained; binding constraint from 18 traces &
-\pass & \texttt{S5.3-*}, \texttt{S5.7} \\
-\rowcolor{rowgray} M8 Integrity & Contamination detected and removed; slots independent; numbers reproducible & 71 runs
-flagged, 0 used; busy vs.\ idle CV $<$ 1\%; 288/288 checks & \pass & \texttt{S5.2}, \texttt{S5.7}; ADR-017, 020 \\
+M1 Scope \& design & -- & Problem, 7 optimizations, regimes, Value, run plan & Assignment 1, Assignment 2, progress
+report & \pass & ADR-000, \fp{docs/progress/} \\
+\rowcolor{rowgray} M2 Harness built & \texttt{pytest tests/}; dry pipeline & Unit tests, simulated end-to-end run, GPU
+smoke test & 68/69 tests pass (1 needs the tokenizer); dry pipeline: 1,536 runs of the 7-optimization plan, 20
+infeasible configs and 1 injected crash recorded, report written; smoke test 7/7 steps on 29 Oct & \pass &
+\fp{tests/}, \fp{configs/profiles/dry.yaml}, \fp{SMOKE_TEST_REPORT.md} \\
+M3 Baseline \& workload & \texttt{S5.1-cv}, \texttt{S2-base}, \texttt{S4-trace} & Default at 7 points, CV $\le$ 2\%;
+Default truly all off; same trace per point & max Default CV 1.53\%; 45/45 Default runs verified off by the engine; 1
+trace per point, 0 request errors in 510 runs & \pass & \fp{data/cells_combined_clean.csv}, ADR-003 \\
+\rowcolor{rowgray} M4 Factorial measurement & \texttt{S4-runs}, \texttt{S5.2} & Planned design measured, $\ge$\,2
+clean reps per cell & 384/384 runs ok; 112 clean phase-1 cells + 16 added; 16 lost to contamination; opts 6--7 not
+run & \partl & ADR-012, \fp{data/cells_missing_after_cleaning.csv} \\
+M5 Value \& table & \texttt{S5.1-*} & Value only when gates pass; Configuration \x\ Regime table & 0 latency, 86
+accuracy failures; full table in App.\ A (generated from data) & \pass & App.\ A,
+\fp{data/final_configs_by_policy.csv} \\
+\rowcolor{rowgray} M6 Quality & \texttt{S5.6-*} & Accuracy vs.\ Default for every numeric setting & 8 settings
+trimmed; 5 settings paired on full tasks; spec combinations not paired & \partl & ADR-018,
+\fp{data/quality_paired_vs_default.csv} \\
+M7 Attribution \& final config & \texttt{S5.3-*}, \texttt{S5.7} & Effects, interactions, Shapley, winner and binding
+constraint per point & $R^2 \ge 0.9976$; Shapley exact at 3 points; 11/11 no-benefit cases explained; binding
+constraint from 18 traces & \pass & \fp{data/clean_main_effects.csv}, \fp{data/clean_shapley.csv} \\
+\rowcolor{rowgray} M8 Integrity & \texttt{S5.2}, \texttt{S5.7} & Contamination detected and removed; slots
+independent; numbers reproducible & 71 runs flagged, 0 used; busy vs.\ idle CV $<$ 1\%; 289/289 checks & \pass &
+ADR-017, ADR-020 \\
 \bottomrule
 \end{longtable}}
 
 % =====================================================================
-\section{Changes from the proposed design}
+\section{Mentor feedback \& engineering evolution}\label{sec:feedback}
 % =====================================================================
-The study was carried out as proposed in Assignment 2, with the changes below; each has an ADR. The project first had
+\textbf{Feedback closure.} No scored mentor feedback was received during the project, so there are no FB-IDs to close.
+
+{\small
+\begin{tabularx}{\linewidth}{@{}P{1.0cm}P{3.6cm}P{2.0cm}LP{2.6cm}@{}}
+\toprule
+\rowcolor{tblhead}\hc{FB-ID} & \hc{Mentor request} & \hc{Response / status} & \hc{Change / justification} & \hc{Evidence} \\
+\midrule
+-- & None received. & n/a & The progress report asked the mentor to confirm the GPU type and count, the latency target
+and the quality tolerance; with no reply, the team fixed them itself (ADR-004, ADR-013, ADR-014). No change made after
+the 9 October checkpoint has documented mentor approval; each is recorded in an ADR and listed below. &
+\fp{docs/progress/} \\
+\bottomrule
+\end{tabularx}}
+
+\medskip
+\textbf{Engineering evolution.} The study was carried out as proposed in Assignment 2, with the changes below; each has
+an ADR. The project first had
 a 4\,\x\,RTX 6000 Ada (48\,GB) node; on 5 Nov it was downgraded to a Slurm node with two newer GPUs,
 2\,\x\,H100 NVL (94\,GB). The largest change is the scope, decided on 2 Nov while the 4-GPU node was still the plan
 (the full 7-optimization study was estimated at $\approx$\,95 node-hours, \fp{RUNBOOK.md} \S2) and kept after the
@@ -799,7 +823,7 @@ Mohd Shozab & \TOFILL{modules owned} & \TOFILL{commit or PR links} \\
 \fp{evaluation/check_report_numbers.py}, \fp{evaluation/make_report_figures.py} (figures 10--12 and Appendix A) were
 drafted with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from the team's data, the report pack, the harness
 source, the course documents and the team's earlier drafts. \emph{How it was checked:} every number in the text
-is recomputed from the committed CSVs by the check script (288/288 pass); the script found two errors in earlier
+is recomputed from the committed CSVs by the check script (289/289 pass); the script found two errors in earlier
 drafts (claim C2 and one rounding), both corrected; figures 10--12 and Appendix A are generated, not typed; the team
 reviewed the text and the ADRs against the code and commit history.
 
@@ -881,7 +905,7 @@ Cleaned runs (363) and cells (128) & \fp{data/runs_combined_clean.csv}, \fp{data
 Findings, claims, per-configuration notes & \fp{FINDINGS.md}, \fp{CLAIMS.csv}, \fp{CONFIG_NOTES.md} \\
 Methodology, limitations, data dictionary & \fp{METHODOLOGY.md}, \fp{LIMITATIONS.md}, \fp{DATA_DICTIONARY.md} \\
 Figures 01--12 & \fp{evaluation/report_pack/figures/} \\
-Number checks (288) and generated figures & \fp{evaluation/check_report_numbers.py},
+Number checks (289) and generated figures & \fp{evaluation/check_report_numbers.py},
 \fp{evaluation/make_report_figures.py} \\
 Unit tests (69) and dry run & \fp{tests/}, \fp{configs/profiles/dry.yaml} \\
 Architecture Decision Records & \fp{docs/Architecture_Decision_Records.md} (ADR-000 to ADR-020) \\

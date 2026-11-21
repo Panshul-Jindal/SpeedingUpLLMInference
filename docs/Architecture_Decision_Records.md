@@ -397,7 +397,8 @@ configurations and 1 injected crash and finishes (`configs/profiles/dry.yaml`); 
 **Date, status & scope.** 2 Nov 2026 (`3526c58`: `configs/profiles/fast.yaml`, `optimizations: [quant, kvq, spec,
 prefix, batch]`), while the 4 × RTX 6000 Ada node was still the plan; kept after the downgrade to the 2 × H100 node
 (ADR-014). Accepted. Amends ADR-000 and ADR-006. Scope: milestones M4,
-M7.
+M7. **Mentor approval:** none on record. This is a change after the 9 October checkpoint, and no mentor feedback was
+received during the project (report §7); the change is disclosed here and in the report instead.
 
 **Context & decision drivers.** The problem statement names seven optimizations. Measuring all seven was estimated at
 ≈ 95 node-hours on a 4-GPU machine (`RUNBOOK.md` §2: sweeps 6 h, start-up check 4 h, quality 4–6 h, 512 cells × 3 reps
@@ -658,6 +659,6 @@ Figures 10–12 and Appendix A are generated from the same CSVs, so they cannot 
 **Consequences & trade-offs.** It verifies arithmetic on exported data, not the measurements themselves (those rest on
 the harness and its 69 unit tests). It found C2 and one rounding error (centre Default p99 TPOT is 18.0 ms).
 
-**Evidence & validation.** `python evaluation/check_report_numbers.py` → 288/288 pass (21 Nov 2026).
+**Evidence & validation.** `python evaluation/check_report_numbers.py` → 289/289 pass (21 Nov 2026).
 
 **Revisit trigger.** A number in the report that no check covers, or a change to the data.

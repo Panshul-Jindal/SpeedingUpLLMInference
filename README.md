@@ -83,12 +83,12 @@ GPU-free (anyone can run these from a clean checkout):
 ```bash
 pytest -q                                                     # 69 tests; 68 pass + 1 skipped without the tokenizer download
 python -m harness pipeline --profile dry --env main --dry-run # full 7-optimization plan on the simulated engine
-python evaluation/check_report_numbers.py                     # re-derives every report number: 288/288
+python evaluation/check_report_numbers.py                     # re-derives every report number: 289/289
 python evaluation/make_report_figures.py                      # figures 10-12 and Appendix A from the CSVs
 python -m harness plan --profile fast --env h100              # print the measured run plan (128 cells)
 ```
 
-Expected output of the check script: one `PASS` line per check and `288/288 checks passed`, exit code 0.
+Expected output of the check script: one `PASS` line per check and `289/289 checks passed`, exit code 0.
 The dry pipeline ends with `pipeline complete: every key attempted` and writes a report under
 `results/dry/report/`.
 
