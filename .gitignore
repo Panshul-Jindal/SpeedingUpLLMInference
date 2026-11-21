@@ -10,3 +10,10 @@ logs/
 /report_pack/
 .env
 results/fast_clean/
+.DS_Store
+.~lock.*#
+# LaTeX build by-products
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.toc
