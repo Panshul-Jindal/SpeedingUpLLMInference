@@ -8,7 +8,7 @@
 <body>
 
 <!-- =============================== COVER =============================== -->
-<div class="cover-kicker">CS5903 Distributed AI Training · Final project report · readable edition</div>
+<div class="cover-kicker">CS5903 Distributed AI Training · Final project report</div>
 <div class="cover-title">Combining Infrastructure-Level Optimizations for LLM Serving</div>
 <div class="cover-hand">What makes an LLM server faster, when, and why. Told plainly.</div>
 
@@ -18,7 +18,7 @@
 <tr><th>Repository</th><td><a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference">github.com/Panshul-Jindal/SpeedingUpLLMInference</a> <span class="muted">(private; evaluators granted access)</span></td></tr>
 <tr><th>Final tag / commit</th><td><code>cs5903-final-2026</code> · {{commit}}</td></tr>
 <tr><th>Demo</th><td>No hosted demo (this is a measurement study). GPU-free: <code>pytest tests/</code>, the dry pipeline on a simulated engine, and <code>python evaluation/check_report_numbers.py</code> (§4).</td></tr>
-<tr><th>Date · companion</th><td>21 November 2026 · same facts as the formal report <code>docs/Project_Report.pdf</code>, written for a first-time reader</td></tr>
+<tr><th>Date</th><td>21 November 2026</td></tr>
 </table>
 
 <div class="summary">
@@ -211,7 +211,7 @@ python -m harness pipeline --profile investigate --env h100       # phase 2 (+ q
 pytest tests/                                                     # 69 unit tests
 python -m harness pipeline --profile dry --env main --dry-run     # whole plan on a simulated engine
 python evaluation/check_report_numbers.py                         # re-derives every report number
-python evaluation/make_report_figures.py                          # report figures 10-12 and Appendix A</pre>
+python docs/report/build.py                                       # rebuilds this report from the CSVs</pre>
 
 <!-- =============================== 5 =============================== -->
 <h1><span class="num">5</span>Results, observations &amp; analysis</h1>
@@ -253,7 +253,7 @@ still agreed with each other: the 23 fully affected setups varied by 0.2–3.8% 
 re-runs, dropped 16 (listed in <code>data/cells_missing_after_cleaning.csv</code>) and added 16 that phase 2 measured
 cleanly (ADR-017). The 40 unaffected phase-1 runs that were re-run match within 2.2%. The corrections were large:</p>
 <figure class="half">
-<img src="../report/figures/02_best_speedup_corrected.png" alt="Best speedup per workload before and after the correction">
+<img src="../../evaluation/report_pack/figures/02_best_speedup_corrected.png" alt="Best speedup per workload before and after the correction">
 <figcaption><b>Figure 6.</b> Best speedup per workload as first reported and after the correction: 4.50× became 2.62× at
 90% sharing, and 2.64× became 1.67× at high load [C4].</figcaption>
 </figure>
@@ -262,7 +262,7 @@ sample of setups in a separate session is cheap, and it is what saved this study
 
 <h2>5.3 Each trick has its moment</h2>
 <figure>
-<img src="../report/figures/06_main_effects_heatmap.png" alt="Effect of each optimization at each workload">
+<img src="../../evaluation/report_pack/figures/06_main_effects_heatmap.png" alt="Effect of each optimization at each workload">
 <figcaption><b>Figure 7.</b> How much each trick multiplies throughput at each workload, averaged over everything else
 switched on or off. The fits explain over 99.7% of the variation at every workload (R² ≥ 0.9976).</figcaption>
 </figure>
@@ -295,7 +295,7 @@ max 21.6%), adding by 9.1% (max 37.4%).</p>
 </div>
 <div>
 <figure>
-<img src="../report/figures/05_composition_observed_vs_predicted.png" alt="Observed vs predicted speedups">
+<img src="../../evaluation/report_pack/figures/05_composition_observed_vs_predicted.png" alt="Observed vs predicted speedups">
 <figcaption><b>Figure 8.</b> Observed speedup versus the product of single speedups [C5]. Points above the line beat
 "independent".</figcaption>
 </figure>
@@ -321,7 +321,7 @@ reason is visible in its guesses (Figure 10): the first guessed token is still a
 the second and third, which build on the helper's own earlier guesses, collapse (second-token acceptance falls from
 0.76 to 0.16 between 2k and 4k). Tokens produced per step drop from 3.35 to 2.12 to 1.56.</p>
 <figure>
-<img src="../report/figures/03_eagle3_long_context.png" alt="EAGLE-3 acceptance and speedup versus prompt length">
+<img src="../../evaluation/report_pack/figures/03_eagle3_long_context.png" alt="EAGLE-3 acceptance and speedup versus prompt length">
 <figcaption><b>Figure 10.</b> EAGLE-3 acceptance by guess position (left) and speedup versus prompt length (right) [C11].</figcaption>
 </figure>
 <p><span class="chip i">INTERPRETATION</span> (low confidence) The helper was probably trained on shorter texts; we did not
@@ -335,8 +335,8 @@ FP8 weights lost 3.0 points on HumanEval's 164 problems). That check was too sma
 on the full benchmarks, comparing every answer with Default's answer <i>to the same question</i>. Result: neither FP8
 trick alone can be told apart from the original (the uncertainty is still too wide to confirm or rule out a 1-point
 drop), so the original exclusions are not supported by the data. But <b>together they lose 2.58 GSM8K points</b>
-(95% CI −4.9 to −0.3, p = 0.03), the only significant drop; the chart with all three benchmarks is
-Figure 8 of the formal report. EAGLE-3 changed 47 of 1,319 GSM8K answers (not
+(95% CI −4.9 to −0.3, p = 0.03), the only significant drop; a chart of all three benchmarks is
+<code>evaluation/report_pack/figures/07_accuracy_paired.png</code>. EAGLE-3 changed 47 of 1,319 GSM8K answers (not
 significant) and no HumanEval result.</p>
 {{tbl_accuracy}}
 <p><span class="chip i">INTERPRETATION</span> Each FP8 change adds a little rounding error, and multi-step arithmetic
@@ -471,21 +471,21 @@ runs: EAGLE-3 acceptance and prefix hit rate reported, every effect within 10% o
 <table class="t compact">
 <thead><tr><th style="width:15%">Member</th><th>Areas</th><th style="width:28%">Commit / PR evidence</th></tr></thead>
 <tbody>
-<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this readable edition.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/e1c43c5"><code>e1c43c5</code></a> (this edition)</td></tr>
+<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this plain-language version of the report.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/e1c43c5"><code>e1c43c5</code></a> (this report's first version), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/a6cf138"><code>a6cf138</code></a> (made it the report)</td></tr>
 <tr><td><b>Mohd Shozab</b></td><td>Initial project planning, with Panshul Jindal. Everything else: the measurement harness (<code>harness/</code>: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis, orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node; contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial drafts of the report, ADRs and presentation.</td><td>Original harness history (commits <code>6ebfa6d</code> to <code>c42acca</code>, cited in the ADRs; not yet imported into this repository); import commit <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4300642b7d3810d7eac72616de71af8cc8a158a4"><code>4300642</code></a>; <code>docs/progress/2026-10-29_harness_handoff.pdf</code></td></tr>
 </tbody></table>
-<p><b>AI-assisted work.</b> The formal report, the ADR write-up and the scripts <code>evaluation/check_report_numbers.py</code>
-and <code>evaluation/make_report_figures.py</code> were drafted with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from
-the team's data, the report pack, the harness source, the course documents and earlier drafts. The final review and
-<b>this readable edition</b> were done with Claude Code (Claude Opus 5.5). <i>How it was checked:</i> every number in the
-formal report is re-derived from the committed CSVs by the check script (289/289 pass); this edition introduces no new
-measurements. Its tables are generated from the same CSVs by <code>docs/report_readable/build.py</code>, which also
-cross-checks every number in this PDF against the formal report. The sketches are drawn by
-<code>docs/report_readable/sketches/make_sketches.py</code>, and their one illustrative bar chart (Figure 9) is marked "not
-to scale". The team reviewed the text against the code and data.</p>
+<p><b>AI-assisted work.</b> The ADR write-up, the number-check script <code>evaluation/check_report_numbers.py</code>
+and the first drafts of this report were written with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from the
+team's data, the report pack, the harness source, the course documents and earlier drafts. The final review and this
+plain-language version of the report were done with Claude Code (Claude Opus 5.5). <i>How it was checked:</i> the check
+script re-derives the report's numbers from the committed CSVs (289/289 pass) and found two errors in earlier drafts
+(claim C2 and one rounding), both corrected. The tables here are generated from the same CSVs by
+<code>docs/report/build.py</code>, which refuses to build if any other number in this PDF is not among the values the check
+script verifies. The sketches are drawn by <code>docs/report/sketches/make_sketches.py</code>; the one illustrative bar
+chart (Figure 9) is marked "not to scale". The team reviewed the text against the code and data.</p>
 <p><b>Third-party assets.</b> Software, model weights and datasets are listed with versions and licences in §2; weights
 and datasets are downloaded at run time and not redistributed. The handwriting font is Kalam by the Indian Type
-Foundry (SIL Open Font License, <code>docs/report_readable/fonts/OFL.txt</code>). Figures and data are the team's own
+Foundry (SIL Open Font License, <code>docs/report/fonts/OFL.txt</code>). Figures and data are the team's own
 measurements.</p>
 
 <h1 style="font-size:12.5pt">References</h1>
@@ -531,14 +531,14 @@ workload.</p>
 <table class="t compact">
 <thead><tr><th style="width:40%">Evidence</th><th>Location</th></tr></thead>
 <tbody>
-<tr><td>The formal report (same facts, full detail)</td><td><code>docs/Project_Report.pdf</code></td></tr>
+<tr><td>The earlier LaTeX version of this report (same facts, denser)</td><td>git history: <code>docs/Project_Report.pdf</code> at commit <code>8acc4fe</code></td></tr>
 <tr><td>Architecture Decision Records</td><td><code>docs/Architecture_Decision_Records.md</code></td></tr>
 <tr><td>Every run (384 phase 1, 126 phase 2) and the cleaned set</td><td><code>evaluation/report_pack/data/runs_*.csv</code>, <code>cells_combined_clean.csv</code></td></tr>
 <tr><td>Findings F1–F10, claims C1–C17, limitations</td><td><code>evaluation/report_pack/FINDINGS.md</code>, <code>CLAIMS.csv</code>, <code>LIMITATIONS.md</code></td></tr>
 <tr><td>Number checks; unit tests; dry run</td><td><code>evaluation/check_report_numbers.py</code>; <code>tests/</code>; <code>configs/profiles/dry.yaml</code></td></tr>
 <tr><td>Slides and speaker script</td><td><code>docs/presentation/</code></td></tr>
 <tr><td>Progress evidence (16 Oct report, 29 Oct handoff)</td><td><code>docs/progress/</code></td></tr>
-<tr><td>This edition's source</td><td><code>docs/report_readable/</code> (<code>build.py</code>, <code>report.html</code>, <code>sketches/</code>)</td></tr>
+<tr><td>This report's source</td><td><code>docs/report/</code> (<code>build.py</code>, <code>report.html</code>, <code>sketches/</code>)</td></tr>
 </tbody></table>
 
 </body>

@@ -6,7 +6,7 @@ A measurement harness for vLLM that switches serving optimizations on and off in
 study of five of them on Llama-3.1-8B-Instruct: which optimizations contribute, under which workloads, and where
 they stop helping.
 
-- **Report:** [`docs/Project_Report.pdf`](docs/Project_Report.pdf) (source in `docs/report/`); a plain-language **readable edition** with the same facts: [`docs/Project_Report_readable.pdf`](docs/Project_Report_readable.pdf) (source in `docs/report_readable/`, build with `python docs/report_readable/build.py`)
+- **Report:** [`docs/Project_Report.pdf`](docs/Project_Report.pdf) (source in `docs/report/`; rebuild with `python docs/report/build.py`, which needs WeasyPrint >= 54 and poppler's `pdftotext`). An earlier, denser LaTeX version is in the git history at commit `8acc4fe`.
 - **Architecture Decision Records:** [`docs/Architecture_Decision_Records.md`](docs/Architecture_Decision_Records.md)
 - **Results, findings and figures:** [`evaluation/report_pack/`](evaluation/report_pack/README.md)
 - **Slides:** `docs/presentation/`
@@ -84,7 +84,7 @@ GPU-free (anyone can run these from a clean checkout):
 pytest -q                                                     # 69 tests; 68 pass + 1 skipped without the tokenizer download
 python -m harness pipeline --profile dry --env main --dry-run # full 7-optimization plan on the simulated engine
 python evaluation/check_report_numbers.py                     # re-derives every report number: 289/289
-python evaluation/make_report_figures.py                      # figures 10-12 and Appendix A from the CSVs
+python docs/report/build.py                                   # rebuilds the report PDF from the CSVs and checks every number in it
 python -m harness plan --profile fast --env h100              # print the measured run plan (128 cells)
 ```
 
@@ -105,7 +105,7 @@ python -m harness analyze --profile fast                      # standard report 
 Regenerating the report pack from raw results (`results/fast/`, `results/investigate/`):
 
 ```bash
-python scripts/report_pack/build.py && python evaluation/make_report_figures.py
+python scripts/report_pack/build.py && python docs/report/build.py
 ```
 
 ## Operations

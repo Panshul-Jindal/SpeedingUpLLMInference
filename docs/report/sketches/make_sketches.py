@@ -2,10 +2,10 @@
 """Draw the hand-sketched explainer diagrams for the readable report.
 
 Each figure is an SVG built from slightly wobbly strokes (fixed random seed, so the output is identical on every
-run) and the Kalam handwriting font (docs/report_readable/fonts, SIL OFL). Numbers in the sketches are the measured
+run) and the Kalam handwriting font (docs/report/fonts, SIL OFL). Numbers in the sketches are the measured
 values quoted in the report; proportions in the "why" sketch are illustrative and labelled as such.
 
-    python docs/report_readable/sketches/make_sketches.py
+    python docs/report/sketches/make_sketches.py
 """
 from __future__ import annotations
 

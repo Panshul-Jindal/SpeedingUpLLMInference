@@ -6,7 +6,7 @@
   size: A4;
   margin: 18mm 18mm 17mm 18mm;
   @top-left { content: "Project 24 · Group 2 · CS5903"; font: 7.5pt Lato, sans-serif; color: #8a949c; }
-  @top-right { content: "Combining LLM serving optimizations · readable edition"; font: 7.5pt Lato, sans-serif; color: #8a949c; }
+  @top-right { content: "Combining LLM serving optimizations"; font: 7.5pt Lato, sans-serif; color: #8a949c; }
   @bottom-center { content: counter(page); font: 8pt Lato, sans-serif; color: #8a949c; }
 }
 @page :first { margin-top: 14mm; @top-left { content: none; } @top-right { content: none; } }

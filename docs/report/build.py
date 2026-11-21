@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Build the readable edition of the report: docs/Project_Report_readable.pdf.
+"""Build the project report: docs/Project_Report.pdf.
 
 * Tables are generated from evaluation/report_pack/data/*.csv, so they cannot drift from the data.
 * The sketches are (re)drawn by sketches/make_sketches.py.
-* After rendering, every number in the PDF is cross-checked against the formal report (docs/Project_Report.pdf),
-  whose numbers are verified by evaluation/check_report_numbers.py. Numbers that do not appear there are listed so a
-  person can confirm them; the build fails if any are unexplained.
+* After rendering, every number printed in the PDF must be one of: a value that evaluation/check_report_numbers.py
+  verifies against the data, a number in a table this script generated from the CSVs, a structural number (section,
+  figure, date, version) or an explicitly confirmed exception below. Otherwise the build fails and lists it.
 
-    python docs/report_readable/build.py [--commit SHA]
+    python docs/report/build.py [--commit SHA]
 Needs: pandas, WeasyPrint >= 54 (command line), pdftotext (poppler).
 """
 from __future__ import annotations
@@ -24,8 +24,8 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 DATA = REPO / "evaluation" / "report_pack" / "data"
-OUT_PDF = REPO / "docs" / "Project_Report_readable.pdf"
-FORMAL_PDF = REPO / "docs" / "Project_Report.pdf"
+OUT_PDF = REPO / "docs" / "Project_Report.pdf"
+CHECKER = REPO / "evaluation" / "check_report_numbers.py"
 E = html.escape
 
 POINTS = ["center", "context_low", "context_high", "concurrency_low", "concurrency_high", "reuse_low", "reuse_high"]
@@ -141,28 +141,69 @@ def numbers(text: str) -> set[str]:
     return out
 
 
-# numbers that are structure, not results: section / figure / step numbers, the commands' arguments, dates, ids
-STRUCTURAL = {str(i) for i in range(0, 13)} | {"2026", "21", "14", "16", "25", "29", "30", "120", "100", "5", "2014",
-                                                "1.1", "0.31.0", "13", "12", "18", "8", "6", "7", "9", "3", "2", "4"}
-# confirmed by hand: values computed by this build from the CSVs, or plain arithmetic restatements
+# numbers that are structure, not results: small counts used as labels, the dates of the study
+STRUCTURAL = {str(i) for i in range(0, 13)} | {"2026", "21", "14", "16", "25", "29", "30", "100", "120"}
+
+# text that contains digits but no measured quantity; removed before the number check
+STRUCTURAL_PATTERNS = [
+    r"\[\d+(?:,\s*\d+)*\]",                       # citations [5, 6]
+    r"(?s)\bReferences\b.*?(?=Appendix A|\Z)",    # the reference list
+    r"\bADR-\d+(?:\s*(?:to|,|and)\s*(?:ADR-)?\d+)*", r"\b0\d{2}\b",   # ADR ids, incl. "013, 014" columns
+    r"§\s?\d+(?:\.\d+)?(?:[–-]\d+(?:\.\d+)?)?", r"(?m)^\s*\d+(?:\.\d+)?\s+(?=[A-Z])",  # section refs, headings
+    r"\bFigures?\s+\d+", r"\b[SMCFP]\d+(?:\.\d+)?(?:-[\w*]+)*",       # figure, check, milestone, claim, step ids
+    r"\b\d+\.\d+\.\d+\S*", r"(?i)llama[- ]?3\.1", r"Opus \d+\.\d+", r"\bRTX \d+", r"H100 NVL \d+ GB",  # names
+    r"\b[0-9a-f]{7,40}\b", r"arXiv:\S+",          # commit SHAs, arXiv ids
+    r"\b(?:19[4-9]\d|20[0-3]\d)\b", r"\b\d{1,2}:\d{2}\b",              # years, clock times
+    r"\b\d{1,2}\s+(?:Oct|October|Nov|November)\b",                     # dates
+    r"\S*\d\S*\.(?:png|pdf|csv|svg|yaml|py|md|txt)\b",                 # file names with digits
+    r"\bseed \d+", r"16,384", r"\bp99\b", r"\bR²", r"CS\d+", r"Project \d+|Group \d+",
+]
+
+# confirmed by hand: quantities the check script does not cover, each with where it comes from
 CONFIRMED = {
-    "1.5": "1.50x (long prompts) printed without its trailing zero by the number tokenizer",
-    "0.11": "rep CV 0.11% in the generated baseline table (cells_combined_clean.csv)",
-    "40": "a 40% slowdown = 1 - 0.596 rounded (F1, median 0.596x)",
+    "1.5": "1.50x printed without its trailing zero by the tokenizer",
+    "40": "a 40% slowdown = 1 - 0.596 (median ratio, S5.2), rounded",
+    "4.3": "extra device memory on GPU 0: 91,917 - 87,498 MB (contamination_by_phase.csv)",
+    "11.5": "phase-1 wall-clock, 03:23-14:52 UTC on 7 Nov (runs_fast_plan_all.csv timestamps)",
+    "10.8": "GPU-minutes per setup = 11.5 h x 2 GPUs x 60 / 128 setups",
+    "90": "hours for the 7-trick plan, from the harness RUNBOOK estimate (report section 7)",
+    "112": "clean phase-1 setups = 104 kept + 8 re-run (cells_combined_clean.csv, source column)",
+    "512": "7-trick plan: 128 + 6 x 64 setups; also the 512-token resolution target in section 9",
+    "896": "7 tricks x 128 setups at every one of 7 workloads",
+    "1536": "dry-run plan: 512 setups x 3 repeats (SMOKE_TEST_REPORT.md / dry profile)",
+    "20": "infeasible setups recorded in the dry run (M2)",
+    "68": "unit tests passed (pytest, 21 Nov)",
+    "289": "number checks in evaluation/check_report_numbers.py",
+    "99.7": "R^2 >= 0.9976 expressed as a percentage",
+    "0.99": "R^2 target for future work (section 9), not a result",
+    "75": "workload parameter: shared prefixes make up 75% of a reusing prompt (METHODOLOGY.md)",
+    "500": "size of the trimmed GSM8K check (quality_trimmed_fast_plan.csv)",
+    "4096": "prompt length in the long-context sweep (spec_vs_context.csv)",
+    "6144": "prompt length in the long-context sweep (spec_vs_context.csv)",
     "0011000": "the 7-bit harness string for EAGLE-3 + prefix (configuration bits, not a measurement)",
+    "00110": "the 5-bit string for EAGLE-3 + prefix (configuration bits)",
 }
 
 
-def cross_check(pdf: Path) -> list[str]:
-    if not FORMAL_PDF.exists():
-        return ["formal report not found; cross-check skipped"]
-    txt = lambda p: subprocess.run(["pdftotext", "-layout", str(p), "-"], capture_output=True, text=True).stdout  # noqa: E731
-    formal = numbers(txt(FORMAL_PDF))
-    mine_text = txt(pdf)
-    # generated tables are checked against the CSVs directly; strip appendix A (generated) from the comparison
-    mine_text = mine_text.split("Appendix A")[0]
-    unknown = sorted(numbers(mine_text) - formal - STRUCTURAL - set(CONFIRMED), key=lambda s: float(s))
-    return unknown
+def verified_numbers() -> set[str]:
+    """Every value that check_report_numbers.py compares with the data (both the report and the data side)."""
+    r = subprocess.run([sys.executable, "-B", str(CHECKER)], capture_output=True, text=True, cwd=REPO)
+    if r.returncode != 0 or "checks passed" not in r.stdout:
+        raise SystemExit("evaluation/check_report_numbers.py failed:\n" + r.stdout[-2000:] + r.stderr[-2000:])
+    vals = set()
+    for line in r.stdout.splitlines():
+        m = re.search(r": report (.*), data (.*)$", line)
+        if m:
+            vals |= numbers(m.group(1)) | numbers(m.group(2))
+    return vals
+
+
+def cross_check(pdf: Path, generated_html: str) -> list[str]:
+    txt = subprocess.run(["pdftotext", "-layout", str(pdf), "-"], capture_output=True, text=True).stdout
+    for pat in STRUCTURAL_PATTERNS:
+        txt = re.sub(pat, " ", txt)
+    allowed = verified_numbers() | numbers(re.sub(r"<[^>]+>", " ", generated_html)) | STRUCTURAL | set(CONFIRMED)
+    return sorted(numbers(txt) - allowed, key=lambda t: float(t))
 
 
 def main(argv=None) -> int:
@@ -194,11 +235,13 @@ def main(argv=None) -> int:
         return r.returncode
     pages = re.search(r"Pages:\s+(\d+)", subprocess.run(["pdfinfo", str(OUT_PDF)], capture_output=True, text=True).stdout)
     print(f"wrote {OUT_PDF.relative_to(REPO)} ({pages.group(1) if pages else '?'} pages; summary {words} words)")
-    unknown = cross_check(OUT_PDF)
+    generated = subs["tbl_baseline"] + subs["tbl_accuracy"] + subs["appendix"]
+    unknown = cross_check(OUT_PDF, generated)
     if unknown:
-        print("numbers not found in the formal report (confirm or explain):", ", ".join(unknown))
+        print("numbers not verified by the check script (confirm or explain):", ", ".join(unknown))
         return 2
-    print("cross-check: every number appears in the formal report, or is structural / confirmed")
+    print("number check: every number is verified by check_report_numbers.py, generated from the CSVs, "
+          "or structural / confirmed")
     return 0
 
 

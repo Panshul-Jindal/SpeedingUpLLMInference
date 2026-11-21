@@ -659,6 +659,6 @@ Figures 10–12 and Appendix A are generated from the same CSVs, so they cannot 
 **Consequences & trade-offs.** It verifies arithmetic on exported data, not the measurements themselves (those rest on
 the harness and its 69 unit tests). It found C2 and one rounding error (centre Default p99 TPOT is 18.0 ms).
 
-**Evidence & validation.** `python evaluation/check_report_numbers.py` → 289/289 pass (21 Nov 2026).
+**Evidence & validation.** `python evaluation/check_report_numbers.py` → 289/289 pass (21 Nov 2026). Amended 21 Nov 2026: the report is now built by `docs/report/build.py`, which refuses to build if any number printed in the PDF is not among the values this script verifies (or is a listed structural or confirmed value).
 
 **Revisit trigger.** A number in the report that no check covers, or a change to the data.
