@@ -813,8 +813,21 @@ reported; main effects within 10\% of synthetic or explained \\
 \toprule
 \rowcolor{tblhead}\hc{Member} & \hc{Meaningful areas / modules} & \hc{PR / commit evidence} \\
 \midrule
-Panshul Jindal & \TOFILL{modules owned} & \TOFILL{commit or PR links} \\
-Mohd Shozab & \TOFILL{modules owned} & \TOFILL{commit or PR links} \\
+Panshul Jindal & Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final
+review and writing of this report and the presentation, from Shozab's initial drafts: course-guide compliance
+(\S6 test IDs, \S7 feedback closure), corrections of overstated claims in the report, slides and script, an added
+number check (\texttt{S5.2}), and the repository restructure to the handover layout. & Commits
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce}{\texttt{4878541}} (restructure),
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a}{\texttt{ae8922b}} (review fixes) and the \S10 commit
+that follows them \\
+Mohd Shozab & Initial project planning, with Panshul Jindal. Everything else: the measurement harness
+(\fp{harness/}: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis,
+orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node;
+contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial
+drafts of the report, ADRs and presentation. & Original harness history (commits \texttt{6ebfa6d} to
+\texttt{c42acca}, cited in the ADRs; not yet imported into this repository); import commit
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4300642b7d3810d7eac72616de71af8cc8a158a4}{\texttt{4300642}};
+\fp{docs/progress/2026-10-29_harness_handoff.pdf} \\
 \bottomrule
 \end{tabularx}}
 \end{table}
@@ -825,7 +838,11 @@ drafted with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from the team's 
 source, the course documents and the team's earlier drafts. \emph{How it was checked:} every number in the text
 is recomputed from the committed CSVs by the check script (289/289 pass); the script found two errors in earlier
 drafts (claim C2 and one rounding), both corrected; figures 10--12 and Appendix A are generated, not typed; the team
-reviewed the text and the ADRs against the code and commit history.
+reviewed the text and the ADRs against the code and commit history. \emph{Final review (Claude Code-assisted).}
+Panshul Jindal's final review (the repository restructure, the \S6 and \S7 additions, the wording corrections in the
+report, slides and script, and check \texttt{S5.2}) was carried out with Claude Code (Anthropic, Claude Opus 5.5).
+\emph{How it was checked:} no measured number was changed; the new number is covered by the check script; the unit
+tests were re-run (67 passed, 2 skipped without network access to the tokenizer); every edited slide was re-rendered.
 
 \textbf{Third-party assets.} Reused software, model weights and datasets are listed with versions and licences in
 \S2; weights and datasets are downloaded at run time and are not redistributed. Figures and data are the team's own
