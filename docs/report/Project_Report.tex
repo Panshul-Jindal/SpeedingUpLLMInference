@@ -750,26 +750,21 @@ type. \\
 
 \begin{table}[H]
 \small
-\begin{tabularx}{\linewidth}{@{}P{3.7cm}LP{1.3cm}@{}}
+\begin{tabularx}{\linewidth}{@{}P{3.7cm}L@{}}
 \toprule
-\rowcolor{tblhead}\hc{Known defect / risk} & \hc{Impact and workaround} & \hc{Next step} \\
+\rowcolor{tblhead}\hc{Known defect / risk} & \hc{Impact and workaround} \\
 \midrule
 No GPU isolation on the shared node & A co-tenant slowed 18\% of phase-1 runs; the pre-flight VRAM check only runs at
-job start (ADR-015). Workaround: re-run sample cells; compare device memory per run. & P2 \\
-\rowcolor{rowgray} Run rows record \texttt{harness\_git = nogit} & The run directory was not a git checkout, so the
-exact harness revision of the 510 runs is not in the data (ADR-011). Workaround: run future jobs from a checkout; the
-final tag is the reference revision. & P2 \\
-Telemetry gaps & Per-process CPU and FLOP/byte counters read 0 in phase 2 (\fp{LIMITATIONS.md}: fixed afterwards,
-not re-run); bottleneck rests on profiler + NVML (ADR-019). & P4 \\
-\rowcolor{rowgray} First-order binding rule & Labels every winner ``per-step overhead''; contradicted by traces (\S5.7). Use F9. & --- \\
-Optimization 7 untested on GPUs & Multi-replica round-robin exercised only with the simulated
-engine; spec with pipeline parallelism may be unsupported in vLLM 0.31. & P4 \\
+job start (ADR-015). Workaround: re-run sample cells; compare device memory per run. \\
+\rowcolor{rowgray} First-order binding rule & Labels every winner ``per-step overhead''; contradicted by traces (\S5.7). Use F9.\\
+Technical debt & Run rows record \texttt{harness\_git = nogit}, so the exact harness revision of the 510 runs is not in
+the data (ADR-011; the final tag is the reference revision). Phase-2 per-process CPU and FLOP/byte counters read 0
+(fixed afterwards, not re-run; ADR-019). Optimization 7's multi-replica layouts ran only on the simulated engine. \\
 \rowcolor{rowgray} Security & HumanEval's model-written code runs without a sandbox
-in the measurement job on a shared node; future runs should isolate it. Dev-mode endpoints on per-job ports. No secrets or personal data. & P1 \\
-Model provenance & Ungated mirror; checksums not compared with the official weights (ADR-002). &
---- \\
-Validity limits & One model, one draft head, synthetic text, fixed 256-token outputs, closed-loop load, power-capped
-GPU, 2--3 reps, one greedy accuracy run per setting. & P5 \\
+in the measurement job on a shared node; future runs should isolate it. Dev-mode endpoints on per-job ports. No secrets or personal data.\\
+Model provenance & Ungated mirror; checksums not compared with the official weights (ADR-002). \\
+\rowcolor{rowgray} Validity limits & One model, one draft head, synthetic text, fixed 256-token outputs, closed-loop load, power-capped
+GPU, 2--3 reps, one greedy accuracy run per setting. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -777,31 +772,31 @@ GPU, 2--3 reps, one greedy accuracy run per setting. & P5 \\
 % =====================================================================
 \section{Way forward}
 % =====================================================================
-\begin{table}[H]
-\small
-\begin{tabularx}{\linewidth}{@{}P{0.6cm}P{3.5cm}P{3.6cm}P{2.9cm}L@{}}
-\toprule
-\rowcolor{tblhead}\hc{Prio} & \hc{Task} & \hc{Starting point} & \hc{Dependency / risk} & \hc{Done when} \\
-\midrule
-P1 & Paired accuracy for quant+spec, kvq+spec, all three, in a sandboxed job & \fp{configs/profiles/investigate.yaml}
-(\texttt{quality.settings}); \fp{harness/analysis/investigate.py} & 1 GPU, a few hours; decides whether policy B
-(up to 3.30\x) holds & each setting has a paired 95\% CI on 3 tasks; policy B no longer ``untested'' \\
-\rowcolor{rowgray} P2 & Re-run the 16 excluded cells with exclusive GPUs and a per-run foreign-memory check, from
-\fp{setup_env.sh} & \fp{data/cells_missing_after_cleaning.csv}; \fp{harness/doctor.py} (\texttt{gpu\_checks}) &
-exclusive allocation on the shared node & missing list empty; runs with foreign GPU memory $>$ 1\,GB flagged;
-winners recomputed \\
-P3 & Prompt-length gate for speculative decoding; finer 2k--4k sweep & \texttt{spec\_long\_context} in
-\fp{investigate.yaml}; \fp{data/spec_vs_context.csv} & a router or two server pools & gated spec $\ge$ max(spec,
-no-spec) at 2k, 2.5k, 3k, 3.5k, 4k, 6k, 8k \\
-\rowcolor{rowgray} P4 & Measure chunked prefill, parallelism and joint extremes, with the fixed telemetry & bits 6--7
-in \fp{harness/engine/vllm_flags.py}; \fp{configs/profiles/full.yaml} & $\ge$\,4-GPU node, $\approx$25 node-hours &
-main effects of opts 6--7 at the centre with $R^2 \ge 0.99$; non-zero CPU and FLOP/byte columns \\
-P5 & Real-traffic workload, e.g.\ ShareGPT-style multi-turn & \texttt{workload.source} in
-\fp{configs/experiment.yaml} & dataset licence; lengths no longer controlled & spec acceptance and prefix hit rate
-reported; main effects within 10\% of synthetic or explained \\
-\bottomrule
-\end{tabularx}
-\end{table}
+The next steps, in priority order:
+
+\begin{enumerate}
+\item \textbf{Paired accuracy for the FP8 + speculation settings.} Run the paired quality test on quant+spec, kvq+spec
+and all three together, so we know whether the faster configurations are usable. \emph{Start from:}
+\fp{configs/profiles/investigate.yaml} (\texttt{quality.settings}) and \fp{harness/analysis/investigate.py}.
+\emph{Depends on:} one GPU for a few hours, in a sandboxed job (HumanEval runs model-written code). \emph{Done when:}
+we have accuracy results and per-question answers for each setting, with a paired 95\% interval on GSM8K, HumanEval
+and MMLU, so the policy-B speedups (up to 3.30\x) are either confirmed or withdrawn.
+\item \textbf{Prompt-length sweep for speculative decoding.} Run finer steps between 2k and 8k tokens to pin down where
+EAGLE-3 stops helping. \emph{Start from:} the \texttt{spec\_long\_context} investigation in \fp{investigate.yaml} and
+\fp{data/spec_vs_context.csv}. \emph{Depends on:} one GPU for a few hours. \emph{Done when:} we have speedup,
+acceptance and telemetry at each length, and the length at which EAGLE-3's speedup falls to 1.00\x\ is located to
+within 512 tokens.
+\item \textbf{Chunked prefill and parallelism.} Measure both on a node with at least four GPUs. \emph{Start from:} bits
+6--7 in \fp{harness/engine/vllm_flags.py} and \fp{configs/profiles/full.yaml}. \emph{Depends on:} about 25 node-hours;
+\emph{blocker:} the current node has only two GPUs. \emph{Done when:} we have throughput, latency and telemetry for
+each, and can explain what they do: their main effects at the centre with $R^2 \ge 0.99$, and non-zero CPU and
+FLOP/byte telemetry.
+\item \textbf{Real-traffic workload.} Replay real multi-turn prompts instead of synthetic ones. \emph{Start from:}
+\texttt{workload.source} in \fp{configs/experiment.yaml}. \emph{Depends on:} a dataset with a suitable licence;
+prompt lengths are no longer under our control. \emph{Done when:} we have results and telemetry on real traffic, and
+can compare them with the synthetic runs: EAGLE-3 acceptance and prefix hit rate are reported, and every main effect
+is within 10\% of the synthetic one or the difference is explained.
+\end{enumerate}
 
 % =====================================================================
 \section{Contributions, AI use \& attribution}
@@ -816,10 +811,12 @@ reported; main effects within 10\% of synthetic or explained \\
 Panshul Jindal & Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final
 review and writing of this report and the presentation, from Shozab's initial drafts: course-guide compliance
 (\S6 test IDs, \S7 feedback closure), corrections of overstated claims in the report, slides and script, an added
-number check (\texttt{S5.2}), and the repository restructure to the handover layout. & Commits
+number check (\texttt{S5.2}), the repository restructure to the handover layout, and the readable edition
+of the report. & Commits
 \href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce}{\texttt{4878541}} (restructure),
-\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a}{\texttt{ae8922b}} (review fixes) and the \S10 commit
-that follows them \\
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a}{\texttt{ae8922b}} (review fixes),
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8}{\texttt{77d9ee8}} (\S10),
+\href{https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/e1c43c5}{\texttt{e1c43c5}} (readable edition) \\
 Mohd Shozab & Initial project planning, with Panshul Jindal. Everything else: the measurement harness
 (\fp{harness/}: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis,
 orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node;
@@ -834,15 +831,11 @@ drafts of the report, ADRs and presentation. & Original harness history (commits
 
 \textbf{AI-assisted work.} \emph{Report generation (Claude-assisted).} This report, the ADR write-up,
 \fp{evaluation/check_report_numbers.py}, \fp{evaluation/make_report_figures.py} (figures 10--12 and Appendix A) were
-drafted with Claude (Anthropic, Claude Opus 5.5, via claude.ai) from the team's data, the report pack, the harness
-source, the course documents and the team's earlier drafts. \emph{How it was checked:} every number in the text
-is recomputed from the committed CSVs by the check script (289/289 pass); the script found two errors in earlier
-drafts (claim C2 and one rounding), both corrected; figures 10--12 and Appendix A are generated, not typed; the team
-reviewed the text and the ADRs against the code and commit history. \emph{Final review (Claude Code-assisted).}
-Panshul Jindal's final review (the repository restructure, the \S6 and \S7 additions, the wording corrections in the
-report, slides and script, and check \texttt{S5.2}) was carried out with Claude Code (Anthropic, Claude Opus 5.5).
-\emph{How it was checked:} no measured number was changed; the new number is covered by the check script; the unit
-tests were re-run (67 passed, 2 skipped without network access to the tokenizer); every edited slide was re-rendered.
+drafted with Claude (Anthropic); the final review, the repository restructure and the readable edition were done with
+Claude Code. \emph{How it was checked:} every number in the text is recomputed from the committed CSVs by the check
+script (289/289 pass), which found two errors in earlier drafts (claim C2 and one rounding), both corrected; figures
+10--12 and Appendix A are generated, not typed; the unit tests were re-run; the team reviewed the text against the
+code and data.
 
 \textbf{Third-party assets.} Reused software, model weights and datasets are listed with versions and licences in
 \S2; weights and datasets are downloaded at run time and are not redistributed. Figures and data are the team's own

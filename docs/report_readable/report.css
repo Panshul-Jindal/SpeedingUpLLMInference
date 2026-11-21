@@ -108,3 +108,7 @@ pre.cmd { font-family: "DejaVu Sans Mono", monospace; font-size: 7.6pt; backgrou
 
 ol.refs { font-size: 8pt; padding-left: 15pt; margin: 0; line-height: 1.35; }
 ol.refs li { margin-bottom: 1.5pt; }
+
+ol.steps { margin: 2pt 0 8pt 0; padding-left: 16pt; }
+ol.steps li { margin-bottom: 5pt; }
+.field { font-family: Lato, sans-serif; font-size: 8.4pt; font-weight: 700; color: var(--teal); }

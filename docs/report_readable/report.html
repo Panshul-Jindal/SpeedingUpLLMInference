@@ -427,30 +427,43 @@ November, the decision mattered even more. The time saved paid for phase 2, whic
 <tr><td><span class="chip nr">MISSING</span></td><td>Tricks 6–7 measured on GPUs; extreme combinations of dials; real user traffic; a second model or GPU type.</td></tr>
 </tbody></table>
 <table class="t compact">
-<thead><tr><th style="width:24%">Known problem or risk</th><th>Impact and workaround</th><th style="width:9%">Next step</th></tr></thead>
+<thead><tr><th style="width:24%">Known problem or risk</th><th>Impact and workaround</th></tr></thead>
 <tbody>
-<tr><td>GPUs on the shared node are not isolated</td><td>A co-tenant slowed 18% of phase-1 runs; the memory check runs only at job start (ADR-015). Workaround: re-run sample setups; compare device memory per run.</td><td>P2</td></tr>
-<tr><td>Run rows say <code>harness_git = nogit</code></td><td>The study ran from a folder that was not a git checkout, so the exact code revision of the 510 runs is not in the data (ADR-011). The final tag is the reference revision.</td><td>P2</td></tr>
-<tr><td>Telemetry gaps</td><td>Per-process CPU and FLOP/byte counters read 0 in phase 2 (fixed afterwards, not re-run); the bottleneck finding rests on profiler + NVML (ADR-019).</td><td>P4</td></tr>
-<tr><td>The quick "binding" rule</td><td>Labels every winner "per-step overhead"; the profiler traces contradict it (§5.7).</td><td>–</td></tr>
-<tr><td>Trick 7 untested on GPUs</td><td>Multi-replica round-robin was exercised only on the simulated engine; EAGLE-3 with pipeline parallelism may be unsupported in vLLM 0.31.</td><td>P4</td></tr>
-<tr><td>Security</td><td>HumanEval's model-written code runs without a sandbox in the measurement job on a shared node; future runs should isolate it. No secrets or personal data.</td><td>P1</td></tr>
-<tr><td>Model provenance</td><td>Ungated mirror; its checksums were not compared with the official weights (ADR-002).</td><td>–</td></tr>
-<tr><td>How far results travel</td><td>One model, one helper head, synthetic text, fixed 256-token answers, constant load, a power-capped GPU, 2–3 repeats, one greedy accuracy run per setting.</td><td>P5</td></tr>
+<tr><td>GPUs on the shared node are not isolated</td><td>A co-tenant slowed 18% of phase-1 runs; the memory check runs only at job start (ADR-015). Workaround: re-run sample setups; compare device memory per run.</td></tr>
+<tr><td>The quick "binding" rule</td><td>Labels every winner "per-step overhead"; the profiler traces contradict it (§5.7).</td></tr>
+<tr><td>Technical debt</td><td>Run rows say <code>harness_git = nogit</code>, so the exact code revision of the 510 runs is not in the data (ADR-011; the final tag is the reference revision). Phase-2 per-process CPU and FLOP/byte counters read 0 (fixed afterwards, not re-run; ADR-019). Trick 7's multi-replica layouts ran only on the simulated engine.</td></tr>
+<tr><td>Security</td><td>HumanEval's model-written code runs without a sandbox in the measurement job on a shared node; future runs should isolate it. No secrets or personal data.</td></tr>
+<tr><td>Model provenance</td><td>Ungated mirror; its checksums were not compared with the official weights (ADR-002).</td></tr>
+<tr><td>How far results travel</td><td>One model, one helper head, synthetic text, fixed 256-token answers, constant load, a power-capped GPU, 2–3 repeats, one greedy accuracy run per setting.</td></tr>
 </tbody></table>
 
 <!-- =============================== 9 =============================== -->
 <h1><span class="num">9</span>Way forward</h1>
 <div class="ask">If you pick this up tomorrow, start here.</div>
-<table class="t compact">
-<thead><tr><th style="width:5%">#</th><th style="width:22%">Task</th><th style="width:25%">Starting point</th><th style="width:18%">Dependency / risk</th><th>Done when</th></tr></thead>
-<tbody>
-<tr><td>P1</td><td>Paired accuracy for FP8 weights + EAGLE-3, FP8 KV + EAGLE-3 and all three, in a sandboxed job</td><td><code>configs/profiles/investigate.yaml</code> (<code>quality.settings</code>); <code>harness/analysis/investigate.py</code></td><td>1 GPU, a few hours; decides whether policy B (up to 3.30×) holds</td><td>each setting has a paired 95% interval on 3 benchmarks; policy B no longer "untested"</td></tr>
-<tr><td>P2</td><td>Re-run the 16 dropped setups on exclusive GPUs, with a per-run check for foreign GPU memory</td><td><code>data/cells_missing_after_cleaning.csv</code>; <code>harness/doctor.py</code></td><td>exclusive allocation on the shared node</td><td>missing list empty; runs with > 1 GB foreign memory flagged; winners recomputed</td></tr>
-<tr><td>P3</td><td>Switch speculation by prompt length; finer 2k–4k sweep</td><td><code>spec_long_context</code> in <code>investigate.yaml</code>; <code>data/spec_vs_context.csv</code></td><td>a router or two server pools</td><td>gated speculation ≥ the better of on/off at 2k, 2.5k, 3k, 3.5k, 4k, 6k, 8k</td></tr>
-<tr><td>P4</td><td>Measure chunked prefill, parallelism and extreme dial combinations, with the fixed telemetry</td><td>bits 6–7 in <code>harness/engine/vllm_flags.py</code>; <code>configs/profiles/full.yaml</code></td><td>a node with ≥ 4 GPUs, ≈ 25 node-hours</td><td>effects of tricks 6–7 at the centre with R² ≥ 0.99; non-zero CPU and FLOP/byte columns</td></tr>
-<tr><td>P5</td><td>Real traffic, e.g. ShareGPT-style conversations</td><td><code>workload.source</code> in <code>configs/experiment.yaml</code></td><td>dataset licence; lengths no longer controlled</td><td>speculation acceptance and prefix hit rate reported; effects within 10% of synthetic, or explained</td></tr>
-</tbody></table>
+<p>The next steps, in priority order:</p>
+<ol class="steps">
+<li><b>Paired accuracy for the FP8 + speculation settings.</b> Run the paired quality test on FP8 weights + EAGLE-3,
+FP8 KV + EAGLE-3 and all three together, so we know whether the faster setups are usable.
+<span class="field">Start from:</span> <code>configs/profiles/investigate.yaml</code> (<code>quality.settings</code>),
+<code>harness/analysis/investigate.py</code>. <span class="field">Depends on:</span> one GPU for a few hours, in a
+sandboxed job. <span class="field">Done when:</span> each setting has accuracy results, per-question answers and a
+paired 95% interval on GSM8K, HumanEval and MMLU, so the policy-B speedups (up to 3.30×) are confirmed or withdrawn.</li>
+<li><b>Prompt-length sweep for speculative decoding.</b> Run finer steps between 2k and 8k tokens to pin down where
+EAGLE-3 stops helping. <span class="field">Start from:</span> <code>spec_long_context</code> in
+<code>investigate.yaml</code>, <code>data/spec_vs_context.csv</code>. <span class="field">Depends on:</span> one GPU
+for a few hours. <span class="field">Done when:</span> speedup, acceptance and telemetry exist at each length, and the
+length where EAGLE-3's speedup falls to 1.00× is located to within 512 tokens.</li>
+<li><b>Chunked prefill and parallelism.</b> Measure both on a node with at least four GPUs.
+<span class="field">Start from:</span> bits 6–7 in <code>harness/engine/vllm_flags.py</code>,
+<code>configs/profiles/full.yaml</code>. <span class="field">Depends on:</span> about 25 node-hours; blocked until a
+node with four or more GPUs is available. <span class="field">Done when:</span> throughput, latency and telemetry exist
+for each, and their effects at the centre are fitted with R² ≥ 0.99, with non-zero CPU and FLOP/byte telemetry.</li>
+<li><b>Real-traffic workload.</b> Replay real multi-turn prompts instead of synthetic ones.
+<span class="field">Start from:</span> <code>workload.source</code> in <code>configs/experiment.yaml</code>.
+<span class="field">Depends on:</span> a dataset with a suitable licence; prompt lengths are no longer under our
+control. <span class="field">Done when:</span> results and telemetry on real traffic are compared with the synthetic
+runs: EAGLE-3 acceptance and prefix hit rate reported, every effect within 10% of the synthetic one or explained.</li>
+</ol>
 
 <!-- =============================== 10 =============================== -->
 <h1><span class="num">10</span>Contributions, AI use &amp; attribution</h1>
@@ -458,7 +471,7 @@ November, the decision mattered even more. The time saved paid for phase 2, whic
 <table class="t compact">
 <thead><tr><th style="width:15%">Member</th><th>Areas</th><th style="width:28%">Commit / PR evidence</th></tr></thead>
 <tbody>
-<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this readable edition.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10) and the commit adding this edition</td></tr>
+<tr><td><b>Panshul Jindal</b></td><td>Initial project planning, with Mohd Shozab (scope, optimizations, regimes, run plan). Final review and writing of the report and the presentation, from Shozab's initial drafts: course-guide compliance (§6 test IDs, §7 feedback closure), corrections of overstated claims in the report, slides and script, an added number check (<code>S5.2</code>), the repository restructure to the handover layout, and this readable edition.</td><td>Commits <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4878541503bf0dc5d6a3b0e941c37efaa63cb6ce"><code>4878541</code></a> (restructure), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/ae8922bbbcfabfbe7f4fbdc927f4e35ada2d742a"><code>ae8922b</code></a> (review fixes), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/77d9ee8"><code>77d9ee8</code></a> (§10), <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/e1c43c5"><code>e1c43c5</code></a> (this edition)</td></tr>
 <tr><td><b>Mohd Shozab</b></td><td>Initial project planning, with Panshul Jindal. Everything else: the measurement harness (<code>harness/</code>: configuration, design, vLLM launcher, workload, load driver, telemetry, quality checker, analysis, orchestrator), its 69 unit tests and the Slurm/cluster scripts; running phase 1 and phase 2 on the H100 node; contamination detection, data cleaning and the report pack; the number-check and figure scripts; and the initial drafts of the report, ADRs and presentation.</td><td>Original harness history (commits <code>6ebfa6d</code> to <code>c42acca</code>, cited in the ADRs; not yet imported into this repository); import commit <a href="https://github.com/Panshul-Jindal/SpeedingUpLLMInference/commit/4300642b7d3810d7eac72616de71af8cc8a158a4"><code>4300642</code></a>; <code>docs/progress/2026-10-29_harness_handoff.pdf</code></td></tr>
 </tbody></table>
 <p><b>AI-assisted work.</b> The formal report, the ADR write-up and the scripts <code>evaluation/check_report_numbers.py</code>
